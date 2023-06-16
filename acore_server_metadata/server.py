@@ -6,7 +6,7 @@ import dataclasses
 from simple_aws_ec2.api import Ec2Instance
 from simple_aws_rds.api import RDSDBInstance
 
-from .exc import ServerNotFoundError, ServerNotUniqueError
+from .exc import ServerNotUniqueError, ServerAlreadyExistsError
 from .settings import settings
 
 
@@ -269,3 +269,97 @@ class Server:
         """
         self.ec2_inst = self.get_ec2(ec2_client, self.id)
         self.rds_inst = self.get_rds(rds_client, self.id)
+
+    def run_ec2(
+        self,
+        ec2_client,
+        ami_id: str,
+        instance_type: str,
+        key_name: str,
+        subnet_id: str,
+        security_group_ids: T.List[str],
+        iam_instance_profile_arn: str,
+        tags: T.Optional[T.Dict[str, str]] = None,
+        check_exists: bool = True,
+    ):
+        """
+        Launch a new EC2 instance as the Game server from the AMI.
+        The configurations are already optimized for the Game server.
+
+        Reference:
+
+        - https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/ec2/client/run_instances.html
+        """
+        if check_exists:
+            ec2_inst = self.get_ec2(ec2_client, id=self.id)
+            if ec2_inst is not None:
+                raise ServerAlreadyExistsError(
+                    f"EC2 instance {self.id!r} already exists"
+                )
+        if tags is None:
+            tags = dict()
+        tags["Name"] = self.id
+        tags[settings.ID_TAG_KEY] = self.id  # the realm tag indicator has to match
+        ec2_client.run_instances(
+            ImageId=ami_id,
+            InstanceType=instance_type,
+            # only launch one instance for each realm
+            MinCount=1,
+            MaxCount=1,
+            KeyName=key_name,
+            SecurityGroupIds=security_group_ids,
+            SubnetId=subnet_id,
+            IamInstanceProfile=dict(Arn=iam_instance_profile_arn),
+            TagSpecifications=[
+                dict(
+                    ResourceType="instance",
+                    Tags=[dict(Key=k, Value=v) for k, v in tags.items()],
+                ),
+            ],
+        )
+
+    def run_rds(
+        self,
+        rds_client,
+        db_snapshot_identifier: str,
+        db_instance_class: str,
+        db_subnet_group_name: str,
+        security_group_ids: T.List[str],
+        multi_az: bool = False,
+        allocated_storage: int = 20,
+        tags: T.Optional[T.Dict[str, str]] = None,
+        check_exists: bool = True,
+    ):
+        """
+        Launch a new RDS DB instance from the backup snapshot.
+        The configurations are already optimized for the Game server.
+
+        Reference:
+
+        - https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/rds/client/restore_db_instance_from_db_snapshot.html
+
+        :param multi_az: use single instance for dev, multi-az for prod.
+        :param allocated_storage: use 20GB (the minimal value you can use) for dev
+            use larger volume based on players for prod.
+        """
+        if check_exists:
+            rds_inst = self.get_rds(rds_client, id=self.id)
+            if rds_inst is not None:
+                raise ServerAlreadyExistsError(
+                    f"RDS DB instance {self.id!r} already exists"
+                )
+        if tags is None:
+            tags = dict()
+        tags[settings.ID_TAG_KEY] = self.id
+        rds_client.restore_db_instance_from_db_snapshot(
+            DBInstanceIdentifier=self.id,
+            DBSnapshotIdentifier=db_snapshot_identifier,
+            DBInstanceClass=db_instance_class,
+            MultiAZ=multi_az,
+            DBSubnetGroupName=db_subnet_group_name,
+            AllocatedStorage=allocated_storage,
+            PubliclyAccessible=False,  # you should never expose your database to the public
+            AutoMinorVersionUpgrade=False,  # don't update MySQL minor version, PLEASE!
+            VpcSecurityGroupIds=security_group_ids,
+            Tags=[dict(Key=k, Value=v) for k, v in tags.items()],
+        )
