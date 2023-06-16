@@ -18,6 +18,7 @@ def test():
     _ = api.Server.get_ec2
     _ = api.Server.get_rds
     _ = api.Server.get_server
+    _ = api.Server.batch_get_server
     _ = api.Server.is_exists
     _ = api.Server.is_running
     _ = api.Server.is_ec2_exists

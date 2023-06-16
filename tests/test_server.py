@@ -17,7 +17,10 @@ class TestServer(BaseMockTest):
     ]
 
     @classmethod
-    def start_instance(cls) -> T.Tuple[str, str]:
+    def start_instance(cls, id: str) -> T.Tuple[str, str]:
+        """
+        return ec2 id and rds id
+        """
         image_id = cls.bsm.ec2_client.describe_images()["Images"][0]["ImageId"]
 
         ec2_id = cls.bsm.ec2_client.run_instances(
@@ -28,7 +31,7 @@ class TestServer(BaseMockTest):
                 {
                     "ResourceType": "instance",
                     "Tags": [
-                        {"Key": settings.ID_TAG_KEY, "Value": "prod"},
+                        {"Key": settings.ID_TAG_KEY, "Value": id},
                     ],
                 },
             ],
@@ -39,22 +42,18 @@ class TestServer(BaseMockTest):
             DBInstanceClass="db.t2.micro",
             Engine="mysql",
             Tags=[
-                {"Key": settings.ID_TAG_KEY, "Value": "prod"},
+                {"Key": settings.ID_TAG_KEY, "Value": id},
             ],
         )["DBInstance"]["DBInstanceIdentifier"]
 
         return ec2_id, rds_id
 
-    @classmethod
-    def setup_class_post_hook(cls):
-        ec2_id, rds_id = cls.start_instance()
-        cls.ec2_id = ec2_id
-        cls.rds_id = rds_id
-
     def _test(self):
+        ec2_id, rds_id = self.start_instance(id="test")
+
         # server exists
         server = Server.get_server(
-            id="prod",
+            id="test",
             ec2_client=self.bsm.ec2_client,
             rds_client=self.bsm.rds_client,
         )
@@ -93,16 +92,44 @@ class TestServer(BaseMockTest):
         assert server.is_rds_running() is False
 
         # start another server with the same tag, then we got collision issue
-        self.start_instance()
+        self.start_instance(id="test")
         with pytest.raises(ServerNotUniqueError):
             server = Server.get_server(
-                id="prod",
+                id="test",
                 ec2_client=self.bsm.ec2_client,
                 rds_client=self.bsm.rds_client,
             )
 
+    def _test_batch_get_server(self):
+        # some server exists, some not
+        self.start_instance(id="prod-1")
+        server_mapper = Server.batch_get_server(
+            ids=["prod-1", "prod-2"],
+            ec2_client=self.bsm.ec2_client,
+            rds_client=self.bsm.rds_client,
+        )
+        server1 = server_mapper["prod-1"]
+        assert server1.is_exists() is True
+        assert server1.is_running() is True
+        assert server1.is_ec2_exists() is True
+        assert server1.is_ec2_running() is True
+        assert server1.is_rds_exists() is True
+        assert server1.is_rds_running() is True
+        assert server_mapper["prod-2"] is None
+
+        # start another server with the same tag, then we got collision issue
+        self.start_instance(id="prod-1")
+        with pytest.raises(ServerNotUniqueError):
+            Server.batch_get_server(
+                ids=["prod-1", "prod-2"],
+                ec2_client=self.bsm.ec2_client,
+                rds_client=self.bsm.rds_client,
+            )
+
+
     def test(self):
         self._test()
+        self._test_batch_get_server()
 
 
 if __name__ == "__main__":

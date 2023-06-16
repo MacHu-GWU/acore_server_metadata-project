@@ -86,13 +86,35 @@ class Server:
     ) -> T.Optional["Server"]:
         """
         尝试获得某个 Server 的 EC2 和 RDS 信息, 如果任意一个不存在则返回 None.
+        该方法是本模块最常用的方法之一. 用例如下:
+
+        .. code-block:: python
+
+            >>> server = Server.get_server("prod", ec2_client, rds_client)
+            >>> server
+            Server(
+                id='prod-1',
+                ec2_inst=Ec2Instance(
+                    id='i-eb5ffe7acc68a252c',
+                    status='running',
+                    ...
+                    tags={'realm': 'prod-1'},
+                    data=...
+                ),
+                rds_inst=RDSDBInstance(
+                    id='db-inst-1',
+                    status='available',
+                    tags={'realm': 'prod-1'},
+                    data=...
+                ),
+            )
 
         如果你想要手动创建一个抽象对象而不立刻尝试获得 Server 的信息, 而是想之后再获取,
         你可以这样:
 
         .. code-block:: python
 
-            >>> server = Server(id="prod-1")
+            >>> server = Server(id="prod")
             >>> server.refresh(ec2_client, rds_client)
 
         """
@@ -103,6 +125,92 @@ class Server:
         if rds_inst is None:  # pragma: no cover
             return None
         return cls(id=id, ec2_inst=ec2_inst, rds_inst=rds_inst)
+
+    @classmethod
+    def batch_get_server(
+        cls,
+        ids: T.List[str],
+        ec2_client,
+        rds_client,
+    ) -> T.Dict[str, T.Optional["Server"]]:
+        """
+        类似于 :meth:`Server.get_server`, 但是可以批量获取多个 Server 的信息, 减少
+        API 调用次数.
+
+        用例:
+
+        .. code-block:: python
+
+            >>> server_mapper = Server.batch_get_server(
+            ...     ids=["prod-1", "prod-2", "dev-1", "dev-2"],
+            ...     ec2_client=ec2_client,
+            ...     rds_client=rds_client,
+            ... )
+            >>> server_mapper
+            {
+                "prod-1": <Server id="prod-1">,
+                "prod-2": <Server id="prod-2">,
+                "dev-1": <Server id="dev-1">,
+                "dev-2": <Server id="dev-2">,
+            }
+        """
+        id_set = set(ids)
+
+        # batch get data
+        ec2_inst_list = Ec2Instance.from_tag_key_value(
+            ec2_client,
+            key=settings.ID_TAG_KEY,
+            value=ids,
+        ).all()
+        rds_inst_list = list()
+        for rds_inst in RDSDBInstance.query(rds_client):
+            if (
+                rds_inst.tags.get(settings.ID_TAG_KEY, "THIS_IS_IMPOSSIBLE_TO_MATCH")
+                in id_set
+            ):
+                rds_inst_list.append(rds_inst)
+
+        # group by server id
+        ec2_inst_mapper = dict()
+        for ec2_inst in ec2_inst_list:
+            key = ec2_inst.tags[settings.ID_TAG_KEY]
+            try:
+                ec2_inst_mapper[key].append(ec2_inst)
+            except KeyError:
+                ec2_inst_mapper[key] = [ec2_inst]
+
+        rds_inst_mapper = dict()
+        for rds_inst in rds_inst_list:
+            key = rds_inst.tags[settings.ID_TAG_KEY]
+            try:
+                rds_inst_mapper[key].append(rds_inst)
+            except KeyError:
+                rds_inst_mapper[key] = [rds_inst]
+
+        # merge data
+        server_mapper = dict()
+        for id in ids:
+            ec2_inst_list = ec2_inst_mapper.get(id, [])
+            if len(ec2_inst_list) >= 2:
+                raise ServerNotUniqueError(f"Found multiple EC2 instance with id {id}")
+            elif len(ec2_inst_list) == 0:
+                server_mapper[id] = None
+                continue
+            else:
+                ec2_inst = ec2_inst_list[0]
+
+            rds_inst_list = rds_inst_mapper.get(id, [])
+            if len(rds_inst_list) >= 2:  # pragma: no cover
+                raise ServerNotUniqueError(f"Found multiple RDS instance with id {id}")
+            elif len(rds_inst_list) == 0:  # pragma: no cover
+                server_mapper[id] = None
+                continue
+            else:
+                rds_inst = rds_inst_list[0]
+
+            server_mapper[id] = cls(id=id, ec2_inst=ec2_inst, rds_inst=rds_inst)
+
+        return server_mapper
 
     # --------------------------------------------------------------------------
     # Check status
