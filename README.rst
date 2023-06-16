@@ -1,5 +1,5 @@
 
-.. image:: https://readthedocs.org/projects/acore-server-metadata/badge/?version=latest
+.. .. image:: https://readthedocs.org/projects/acore-server-metadata/badge/?version=latest
     :target: https://acore-server-metadata.readthedocs.io/en/latest/
     :alt: Documentation Status
 
@@ -26,10 +26,10 @@
 
 ------
 
-.. image:: https://img.shields.io/badge/Link-Document-blue.svg
+.. .. image:: https://img.shields.io/badge/Link-Document-blue.svg
     :target: https://acore-server-metadata.readthedocs.io/en/latest/
 
-.. image:: https://img.shields.io/badge/Link-API-blue.svg
+.. .. image:: https://img.shields.io/badge/Link-API-blue.svg
     :target: https://acore-server-metadata.readthedocs.io/en/latest/py-modindex.html
 
 .. image:: https://img.shields.io/badge/Link-Install-blue.svg
@@ -50,7 +50,67 @@
 
 Welcome to ``acore_server_metadata`` Documentation
 ==============================================================================
-Documentation for ``acore_server_metadata``.
+**背景**
+
+`AzerothCore <https://www.azerothcore.org/>`_ (acore) 是一个开源的魔兽世界模拟器, 其代码质量以及文档是目前 (2023 年) 我看来所有的开源魔兽世界模拟器中最好的. 根据魔兽世界官服服务器的架构, 每一个 realm (大区下的某个服务器, 例如国服著名的山丘之王, 洛萨等) 一般都对应着一个单体虚拟机和一个单体数据库. 一个大区下有很多这种服务器, 而在生产环境和测试开发环境下又分别有很多这种服务器. 所以我需要开发一个工具对于这些服务器进行管理, 健康检查等.
+
+我假设游戏服务器虚拟机和数据库都是在 AWS 上用 EC2 和 RDS 部署的. 所以这个项目只能用于 AWS 环境下的服务器管理.
+
+**关于本项目**
+
+本项目是一个简单的 Python 包, 提供了对一个 realm 服务器的抽象.
+
+用例:
+
+.. code-block:: python
+
+    # 获取服务器的状态
+    >>> import boto3
+    >>> from acore_server_metadata.api import Server
+    >>> server_id = "prod"
+    >>> server = Server.get_server(server_id, ec2_client, rds_client)
+    >>> server
+    Server(
+        id='prod-1',
+        ec2_inst=Ec2Instance(
+            id='i-1a2b3c4d',
+            status='running',
+            ...
+            tags={'realm': 'prod'},
+            data=...
+        ),
+        rds_inst=RDSDBInstance(
+            id='db-inst-1',
+            status='available',
+            tags={'realm': 'prod'},
+            data=...
+        ),
+    )
+
+    # 检查服务器的状态
+    >>> server.is_exists()
+    >>> server.is_running()
+    >>> server.is_ec2_exists()
+    >>> server.is_ec2_running()
+    >>> server.is_rds_exists()
+    >>> server.is_rds_running()
+
+    # 重新获取服务器的状态
+    >>> server.refresh()
+
+    # 批量获取服务器的状态, 进行了一些优化, 以减少 API 调用次数
+    >>> server_mapper = Server.batch_get_server(
+    ...     ids=["prod-1", "prod-2", "dev-1", "dev-2"],
+    ...     ec2_client=ec2_client,
+    ...     rds_client=rds_client,
+    ... )
+    >>> server_mapper
+    {
+        "prod-1": <Server id="prod-1">,
+        "prod-2": <Server id="prod-2">,
+        "dev-1": <Server id="dev-1">,
+        "dev-2": <Server id="dev-2">,
+    }
 
 
 .. _install:

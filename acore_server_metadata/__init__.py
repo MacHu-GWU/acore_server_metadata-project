@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 
 """
-Package Description.
+Azerothcore WOW server metadata for Fleet management.
 """
 
 from ._version import __version__
 
-__short_description__ = "Package short description."
+__short_description__ = "Azerothcore WOW server metadata for Fleet management."
 __license__ = "MIT"
 __author__ = "Sanhe Hu"
 __author_email__ = "husanhe@gmail.com"
