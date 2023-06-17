@@ -2,12 +2,18 @@
 
 import typing as T
 import dataclasses
+from datetime import timezone
 
 from simple_aws_ec2.api import Ec2Instance
 from simple_aws_rds.api import RDSDBInstance
 
-from .exc import ServerNotUniqueError, ServerAlreadyExistsError
+from .exc import (
+    ServerNotFoundError,
+    ServerNotUniqueError,
+    ServerAlreadyExistsError,
+)
 from .settings import settings
+from .utils import get_utc_now
 
 
 @dataclasses.dataclass
@@ -270,6 +276,9 @@ class Server:
         self.ec2_inst = self.get_ec2(ec2_client, self.id)
         self.rds_inst = self.get_rds(rds_client, self.id)
 
+    # --------------------------------------------------------------------------
+    # Operations
+    # --------------------------------------------------------------------------
     def run_ec2(
         self,
         ec2_client,
@@ -289,6 +298,16 @@ class Server:
         Reference:
 
         - https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/ec2/client/run_instances.html
+
+        :param ec2_client: boto3 ec2 client
+        :param ami_id: example: "ami-1a2b3c4d"
+        :param instance_type: example "t3.small", "t3.medium", "t3.large", "t3.xlarge", "t3.2xlarge
+        :param key_name: example "my-key-pair"
+        :param subnet_id: example "subnet-1a2b3c4d"
+        :param security_group_ids: example ["sg-1a2b3c4d"]
+        :param iam_instance_profile_arn: example "arn:aws:iam::123456789012:instance-profile/my-iam-role"
+        :param tags: custom tags
+        :param check_exists: if True, check if the EC2 instance already exists
         """
         if check_exists:
             ec2_inst = self.get_ec2(ec2_client, id=self.id)
@@ -300,6 +319,7 @@ class Server:
             tags = dict()
         tags["Name"] = self.id
         tags[settings.ID_TAG_KEY] = self.id  # the realm tag indicator has to match
+        tags["tech:machine_creator"] = "acore_server_metadata"
         ec2_client.run_instances(
             ImageId=ami_id,
             InstanceType=instance_type,
@@ -338,9 +358,16 @@ class Server:
 
         - https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/rds/client/restore_db_instance_from_db_snapshot.html
 
+        :param rds_client: boto3 rds client
+        :param db_snapshot_identifier: example "my-db-snapshot"
+        :param db_instance_class: example "db.t4g.micro", "db.t4g.small", "db.t4g.medium", "db.t4g.large"
+        :param db_subnet_group_name: example "my-db-subnet-group"
+        :param security_group_ids: example ["sg-1a2b3c4d"]
         :param multi_az: use single instance for dev, multi-az for prod.
         :param allocated_storage: use 20GB (the minimal value you can use) for dev
             use larger volume based on players for prod.
+        :param tags: custom tags
+        :param check_exists: if True, check if the RDS DB instance already exists
         """
         if check_exists:
             rds_inst = self.get_rds(rds_client, id=self.id)
@@ -351,6 +378,7 @@ class Server:
         if tags is None:
             tags = dict()
         tags[settings.ID_TAG_KEY] = self.id
+        tags["tech:machine_creator"] = "acore_server_metadata"
         rds_client.restore_db_instance_from_db_snapshot(
             DBInstanceIdentifier=self.id,
             DBSnapshotIdentifier=db_snapshot_identifier,
@@ -363,3 +391,108 @@ class Server:
             VpcSecurityGroupIds=security_group_ids,
             Tags=[dict(Key=k, Value=v) for k, v in tags.items()],
         )
+
+    def associate_eip_address(
+        self,
+        ec2_client,
+        allocation_id: str,
+        check_exists: bool = True,
+    ):
+        """
+        Associate the given Elastic IP address with the EC2 instance.
+        Note that this operation is idempotent, it will disassociate and re-associate
+        the Elastic IP address if it is already associated with another EC2 instance
+        or this one, and each association will incur a small fee. So I would like
+        to check before doing this.
+
+        :param ec2_client: boto3 ec2 client
+        :param allocation_id: the EIP allocation id, not the pulibc ip,
+            example "eipalloc-1a2b3c4d"
+        :param check_exists: check if the EC2 instance exists before associating.
+        """
+        if check_exists:
+            ec2_inst = self.get_ec2(ec2_client, id=self.id)
+            if ec2_inst is None:
+                raise ServerAlreadyExistsError(
+                    f"EC2 instance {self.id!r} does not exist"
+                )
+            self.ec2_inst = ec2_inst
+        # check if this allocation id is already associated with an instance
+        res = ec2_client.describe_addresses(AllocationIds=[allocation_id])
+        address_data = res["Addresses"][0]
+        public_id = address_data["PublicIp"]
+        instance_id = address_data.get("InstanceId", "invalid-instance-id")
+        if instance_id == self.ec2_inst.id:
+            return  # already associated
+        ec2_client.associate_address(
+            AllocationId=allocation_id,
+            InstanceId=self.ec2_inst.id,
+        )
+
+    def create_db_snapshot(
+        self,
+        rds_client,
+        check_exists: bool = True,
+    ):
+        """
+        Create a 'manual' DB snapshot for the RDS DB instance.
+        It use the server id and timestamp as the snapshot id.
+        """
+        if check_exists:
+            rds_inst = self.get_rds(rds_client, id=self.id)
+            if rds_inst is None:
+                raise ServerNotFoundError(f"RDS DB instance {self.id!r} does not exist")
+        now = get_utc_now()
+        snapshot_id = "{}-{}".format(
+            self.id,
+            now.strftime("%Y-%m-%d-%H-%M-%S"),
+        )
+        rds_client.create_db_snapshot(
+            DBSnapshotIdentifier=snapshot_id,
+            DBInstanceIdentifier=self.rds_inst.id,
+            Tags=[
+                dict(Key=settings.ID_TAG_KEY, Value=self.id),
+                dict(Key="tech:machine_creator", Value="acore_server_metadata"),
+            ],
+        )
+
+    def cleanup_db_snapshot(
+        self,
+        rds_client,
+        keep_n: int = 3,
+        keep_days: int = 365,
+    ):
+        """
+        Clean up old RDS DB snapshots of this server.
+
+        :param rds_client: boto3 rds client
+        :param keep_n: keep the latest N snapshots. this criteria has higher priority.
+            for example, even the only N snapshots is very very old, but we still keep them.
+        :param keep_days: delete snapshots older than N days if we have more than N snapshots.
+
+        todo: use paginator
+        """
+        # get the list of manual created snapshots
+        res = rds_client.describe_db_snapshots(
+            DBInstanceIdentifier=self.rds_inst.id,
+            SnapshotType="manual",
+            MaxRecords=100,
+        )
+        # sort them by create time, latest comes first
+        snapshot_list = list(
+            sorted(
+                res.get("DBSnapshots", []),
+                key=lambda d: d["SnapshotCreateTime"],
+                reverse=True,
+            )
+        )
+        if len(snapshot_list) <= keep_n:
+            return
+        now = get_utc_now()
+        for snapshot in snapshot_list[keep_n:]:
+            create_time = snapshot["SnapshotCreateTime"]
+            create_time = create_time.replace(tzinfo=timezone.utc)
+            if (now - create_time).total_seconds() > (keep_days * 86400):
+                rds_client.delete_db_snapshot(
+                    DBSnapshotIdentifier=snapshot["DBSnapshotIdentifier"],
+                )
