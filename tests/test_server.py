@@ -126,10 +126,14 @@ class TestServer(BaseMockTest):
                 rds_client=self.bsm.rds_client,
             )
 
+    def _test_operations(self):
+        server = Server(id="test-operations")
+        # todo
 
     def test(self):
         self._test()
         self._test_batch_get_server()
+        self._test_operations()
 
 
 if __name__ == "__main__":
