@@ -60,7 +60,7 @@ Welcome to ``acore_server_metadata`` Documentation
 
 本项目是一个简单的 Python 包, 提供了对一个 realm 服务器的抽象.
 
-用例:
+**基础用例, 获取服务器状态**
 
 .. code-block:: python
 
@@ -112,10 +112,14 @@ Welcome to ``acore_server_metadata`` Documentation
         "dev-2": <Server id="dev-2">,
     }
 
+**对服务器进行操作**
+
+.. code-block:: python
+
     # 启动新的 EC2
-    >>> server.run_ec2(...)
+    >>> server.run_ec2(ec_client, ami_id, instance_type, ...)
     # 启动新的 DB Instance
-    >>> server.run_rds(...)
+    >>> server.run_rds(rds_client, db_snapshot_identifier, db_instance_class, ...)
     # 关联 EIP 地址
     >>> server.associate_eip_address(...)
     # 创建数据库备份

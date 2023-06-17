@@ -4,8 +4,8 @@ import typing as T
 import dataclasses
 from datetime import timezone
 
-from simple_aws_ec2.api import Ec2Instance
-from simple_aws_rds.api import RDSDBInstance
+from simple_aws_ec2.api import Ec2Instance, EC2InstanceStatusEnum
+from simple_aws_rds.api import RDSDBInstance, RDSDBInstanceStatusEnum
 
 from .exc import (
     ServerNotFoundError,
@@ -44,18 +44,72 @@ class Server:
     # Constructor
     # --------------------------------------------------------------------------
     @classmethod
+    def _get_existing_ec2(
+        cls,
+        ec2_client,
+        ids: T.List[str],
+    ) -> T.List[Ec2Instance]:
+        return Ec2Instance.query(
+            ec2_client=ec2_client,
+            filters=[
+                dict(Name=f"tag:{settings.ID_TAG_KEY}", Values=ids),
+                # we don't count terminated instances as existing
+                dict(
+                    Name="instance-state-name",
+                    Values=[
+                        EC2InstanceStatusEnum.pending.value,
+                        EC2InstanceStatusEnum.running.value,
+                        EC2InstanceStatusEnum.stopping.value,
+                        EC2InstanceStatusEnum.stopped.value,
+                    ],
+                ),
+            ],
+        ).all()
+
+    @classmethod
+    def _get_existing_rds(
+        cls,
+        rds_client,
+        ids: T.List[str],
+    ) -> T.List[RDSDBInstance]:
+        res = RDSDBInstance.query(rds_client)
+        ids = set(ids)
+        return [
+            rds_inst
+            for rds_inst in res
+            # we don't count deleted / failed db instances as existing
+            if (
+                (
+                    rds_inst.status
+                    not in [
+                        RDSDBInstanceStatusEnum.delete_precheck.value,
+                        RDSDBInstanceStatusEnum.deleting.value,
+                        RDSDBInstanceStatusEnum.failed.value,
+                        RDSDBInstanceStatusEnum.restore_error.value,
+                    ]
+                )
+                and (
+                    rds_inst.tags.get(
+                        settings.ID_TAG_KEY,
+                        "THIS_IS_IMPOSSIBLE_TO_MATCH",
+                    )
+                    in ids
+                )
+            )
+        ]
+
+    @classmethod
     def get_ec2(
         cls,
         ec2_client,
         id: str,
     ) -> T.Optional[Ec2Instance]:
         """
-        尝试获取某个 Server 的 EC2 实例信息. 如果 EC2 不存在则返回 None.
+        尝试获取某个 Server 的 EC2 实例信息. 如果 EC2 "不存在" 则返回 None.
+        "不存在" 的含义是这个机器没有被创建, 或是已经被永久删除了. 如果机器存在而是出于启动中,
+        停止中这一类的情况, 这个机器还可以被重新启动, 所以被视为存在.
         """
-        res = Ec2Instance.from_tag_key_value(
-            ec2_client, key=settings.ID_TAG_KEY, value=id
-        )
-        ec2_inst_list = res.all()
+        ec2_inst_list = cls._get_existing_ec2(ec2_client=ec2_client, ids=[id])
         if len(ec2_inst_list) > 1:
             raise ServerNotUniqueError(f"Found multiple EC2 instance with id {id}")
         elif len(ec2_inst_list) == 0:
@@ -70,12 +124,11 @@ class Server:
         id: str,
     ) -> T.Optional[RDSDBInstance]:
         """
-        尝试获取某个 Server 的 RDS 实例信息. 如果 RDS 不存在则返回 None.
+        尝试获取某个 Server 的 RDS 实例信息. 如果 RDS "不存在"则返回 None.
+        "不存在" 的含义是这个数据库没有被创建, 或是已经被永久删除了. 如果机器存在而是出于启动中,
+        停止中这一类的情况, 这个数据库还可以被重新启动, 所以被视为存在.
         """
-        res = RDSDBInstance.from_tag_key_value(
-            rds_client, key=settings.ID_TAG_KEY, value=id
-        )
-        rds_inst_list = res.all()
+        rds_inst_list = cls._get_existing_rds(rds_client=rds_client, ids=[id])
         if len(rds_inst_list) > 1:  # pragma: no cover
             raise ServerNotUniqueError(f"Found multiple RDS instance with id {id}")
         elif len(rds_inst_list) == 0:
@@ -91,7 +144,8 @@ class Server:
         rds_client,
     ) -> T.Optional["Server"]:
         """
-        尝试获得某个 Server 的 EC2 和 RDS 信息, 如果任意一个不存在则返回 None.
+        尝试获得某个 Server 的 EC2 和 RDS 信息, 如果任意一个 "不存在" 则返回 None.
+        关于 "不存在" 的定义请参考 :meth:`Server.get_ec2` 和 :meth:`Server.get_rds`.
         该方法是本模块最常用的方法之一. 用例如下:
 
         .. code-block:: python
@@ -115,14 +169,16 @@ class Server:
                 ),
             )
 
-        如果你想要手动创建一个抽象对象而不立刻尝试获得 Server 的信息, 而是想之后再获取,
-        你可以这样:
+        如果你需要分开判断 EC2 和 RDS 的存在性, 你可以这样:
 
         .. code-block:: python
 
             >>> server = Server(id="prod")
             >>> server.refresh(ec2_client, rds_client)
-
+            >>> server.is_ec2_exists()
+            True
+            >>> server.is_rds_exists()
+            False
         """
         ec2_inst = cls.get_ec2(ec2_client, id)
         if ec2_inst is None:
@@ -160,21 +216,9 @@ class Server:
                 "dev-2": <Server id="dev-2">,
             }
         """
-        id_set = set(ids)
-
         # batch get data
-        ec2_inst_list = Ec2Instance.from_tag_key_value(
-            ec2_client,
-            key=settings.ID_TAG_KEY,
-            value=ids,
-        ).all()
-        rds_inst_list = list()
-        for rds_inst in RDSDBInstance.query(rds_client):
-            if (
-                rds_inst.tags.get(settings.ID_TAG_KEY, "THIS_IS_IMPOSSIBLE_TO_MATCH")
-                in id_set
-            ):
-                rds_inst_list.append(rds_inst)
+        ec2_inst_list = cls._get_existing_ec2(ec2_client=ec2_client, ids=ids)
+        rds_inst_list = cls._get_existing_rds(rds_client=rds_client, ids=ids)
 
         # group by server id
         ec2_inst_mapper = dict()
@@ -271,7 +315,7 @@ class Server:
         rds_client,
     ):
         """
-        重新获取 EC2 和 RDS 实例的信息.
+        重新获取 EC2 和 RDS 实例的信息. 刷新当前类的 ``ec2_inst`` 和 ``rds_inst`` 属性.
         """
         self.ec2_inst = self.get_ec2(ec2_client, self.id)
         self.rds_inst = self.get_rds(rds_client, self.id)
@@ -294,6 +338,10 @@ class Server:
         """
         Launch a new EC2 instance as the Game server from the AMI.
         The configurations are already optimized for the Game server.
+
+        在服务器运维过程中, 我们都是从自己构建的游戏服务器 AMI 启动 EC2 实例. 它的 Tag 必须
+        要符合一定的规则 (详情请参考 :class:`Server`). 本方法会自动为新的 EC2 实例打上这些
+        必要的 Tag.
 
         Reference:
 
@@ -354,6 +402,10 @@ class Server:
         Launch a new RDS DB instance from the backup snapshot.
         The configurations are already optimized for the Game server.
 
+        在数据库运维过程中, 我们都是从自己备份的 Snapshot 启动 DB 实例. 它的 Tag 必须
+        要符合一定的规则 (详情请参考 :class:`Server`). 本方法会自动为新的 DB 实例打上这些
+        必要的 Tag.
+
         Reference:
 
         - https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/rds/client/restore_db_instance_from_db_snapshot.html
@@ -405,6 +457,10 @@ class Server:
         or this one, and each association will incur a small fee. So I would like
         to check before doing this.
 
+        当对生产服务器进行运维时, 我们需要维护给每个服务器一个固定 IP. 我们可以通过定义一个
+        映射表, 然后用这个方法确保每个服务器的 IP 是正确的 (该方法是幂等的, 如果已经设置好了
+        则什么也不会做).
+
         :param ec2_client: boto3 ec2 client
         :param allocation_id: the EIP allocation id, not the pulibc ip,
             example "eipalloc-1a2b3c4d"
@@ -416,7 +472,7 @@ class Server:
                 raise ServerAlreadyExistsError(
                     f"EC2 instance {self.id!r} does not exist"
                 )
-            self.ec2_inst = ec2_inst
+
         # check if this allocation id is already associated with an instance
         res = ec2_client.describe_addresses(AllocationIds=[allocation_id])
         address_data = res["Addresses"][0]
@@ -424,6 +480,8 @@ class Server:
         instance_id = address_data.get("InstanceId", "invalid-instance-id")
         if instance_id == self.ec2_inst.id:
             return  # already associated
+
+        # associate eip address
         ec2_client.associate_address(
             AllocationId=allocation_id,
             InstanceId=self.ec2_inst.id,
@@ -436,7 +494,10 @@ class Server:
     ):
         """
         Create a 'manual' DB snapshot for the RDS DB instance.
-        It use the server id and timestamp as the snapshot id.
+        The snapshot id naming convention is "${server_id}-%Y-%m-%d-%H-%M-%S".
+
+        在数据库运维过程中, 我们需要定期备份生产服务器的数据库. 该方法能为我们创建 DB snapshot
+        并合理明明, 打上对应的 Tag.
         """
         if check_exists:
             rds_inst = self.get_rds(rds_client, id=self.id)
@@ -465,12 +526,15 @@ class Server:
         """
         Clean up old RDS DB snapshots of this server.
 
+        在数据库运维过程中, 我们需要定期备份生产服务器的数据库. 该方法能为我们创建 DB snapshot
+        并合理明明, 打上对应的 Tag.
+
         :param rds_client: boto3 rds client
         :param keep_n: keep the latest N snapshots. this criteria has higher priority.
             for example, even the only N snapshots is very very old, but we still keep them.
         :param keep_days: delete snapshots older than N days if we have more than N snapshots.
 
-        todo: use paginator
+        todo: use paginator to list existing snapshots
         """
         # get the list of manual created snapshots
         res = rds_client.describe_db_snapshots(

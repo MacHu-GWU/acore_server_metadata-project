@@ -2,6 +2,7 @@
 
 import typing as T
 import moto
+import time
 import pytest
 
 from acore_server_metadata.tests.mock_aws import BaseMockTest
@@ -128,7 +129,16 @@ class TestServer(BaseMockTest):
 
     def _test_operations(self):
         server = Server(id="test-operations")
-        # todo
+        self.start_instance(server.id)
+        server.refresh(ec2_client=self.bsm.ec2_client, rds_client=self.bsm.rds_client)
+
+        server.create_db_snapshot(rds_client=self.bsm.rds_client)
+        time.sleep(1)
+        server.create_db_snapshot(rds_client=self.bsm.rds_client)
+        time.sleep(1)
+        server.create_db_snapshot(rds_client=self.bsm.rds_client)
+
+        server.cleanup_db_snapshot(rds_client=self.bsm.rds_client, keep_n=1, keep_days=0)
 
     def test(self):
         self._test()
