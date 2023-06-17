@@ -8,6 +8,7 @@ omit =
     acore_server_metadata/_version.py
     acore_server_metadata/cli.py
     acore_server_metadata/paths.py
+    acore_server_metadata/utils.py
 
 [report]
 # Regexes for lines to exclude from consideration

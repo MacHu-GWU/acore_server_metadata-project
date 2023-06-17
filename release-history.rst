@@ -15,11 +15,14 @@ x.y.z (Backlog)
 **Miscellaneous**
 
 
-0.2.1 (Backlog)
+0.2.1 (2023-06-16)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 **Features and Improvements**
 
 - add ``acore_server_metadata.api.Server.run_ec2`` and ``acore_server_metadata.api.Server.run_rds`` method to launch a new EC2 instance or RDS db instance.
+- add ``acore_server_metadata.api.Server.associate_eip_address`` to associate eip address to EC2 instance.
+- add ``acore_server_metadata.api.Server.create_db_snapshot`` to create a manual db snapshot for RDS DB instance.
+- add ``acore_server_metadata.api.Server.cleanup_db_snapshot`` to clean up old db snapshots for RDS DB instance.
 
 
 0.1.1 (2023-06-15)

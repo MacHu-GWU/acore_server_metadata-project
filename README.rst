@@ -112,6 +112,17 @@ Welcome to ``acore_server_metadata`` Documentation
         "dev-2": <Server id="dev-2">,
     }
 
+    # 启动新的 EC2
+    >>> server.run_ec2(...)
+    # 启动新的 DB Instance
+    >>> server.run_rds(...)
+    # 关联 EIP 地址
+    >>> server.associate_eip_address(...)
+    # 创建数据库备份
+    >>> server.create_db_snapshot(...)
+    # 清理数据库备份
+    >>> server.cleanup_db_snapshot(...)
+
 
 .. _install:
 
