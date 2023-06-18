@@ -509,7 +509,8 @@ class Server:
 
         rds_client.modify_db_instance(
             DBInstanceIdentifier=self.rds_inst.id,
-            MasterUserPassword=master_password
+            MasterUserPassword=master_password,
+            ApplyImmediately=True,
         )
 
     def create_db_snapshot(
