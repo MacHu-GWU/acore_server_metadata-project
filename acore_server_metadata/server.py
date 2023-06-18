@@ -487,6 +487,31 @@ class Server:
             InstanceId=self.ec2_inst.id,
         )
 
+    def update_db_master_password(
+        self,
+        rds_client,
+        master_password: str,
+        check_exists: bool = True,
+    ):
+        """
+        Update the DB instance master password. When you recover the DB instance
+        from a snapshot, the master password is the same as the password when you
+        create the snapshot. This method can be used to update the master password.
+
+        在数据库运维过程中, 我们都是从自己备份的 Snapshot 启动 DB 实例. 它的管理员密码会继承
+        备份 Snapshot 的时候的密码. 比如我们希望用开发环境的 snapshot 创建生产环境的数据库,
+        这时候再继续用开发环境的密码肯定不妥, 所以需要更新密码. 该方法可以做到这一点.
+        """
+        if check_exists:
+            rds_inst = self.get_rds(rds_client, id=self.id)
+            if rds_inst is None:
+                raise ServerNotFoundError(f"RDS DB instance {self.id!r} does not exist")
+
+        rds_client.modify_db_instance(
+            DBInstanceIdentifier=self.rds_inst.id,
+            MasterUserPassword=master_password
+        )
+
     def create_db_snapshot(
         self,
         rds_client,
