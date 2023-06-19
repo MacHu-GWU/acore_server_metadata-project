@@ -120,6 +120,8 @@ Welcome to ``acore_server_metadata`` Documentation
     >>> server.run_ec2(ec_client, ami_id, instance_type, ...)
     # 启动新的 DB Instance
     >>> server.run_rds(rds_client, db_snapshot_identifier, db_instance_class, ...)
+    # 更新 DB 的 master password
+    >>> server.update_db_master_password(rds_client, master_password)
     # 关联 EIP 地址
     >>> server.associate_eip_address(...)
     # 创建数据库备份
