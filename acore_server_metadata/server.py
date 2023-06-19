@@ -399,6 +399,8 @@ class Server:
             ],
         )
 
+    create_ec2 = run_ec2  # alias
+
     def run_rds(
         self,
         rds_client,
@@ -456,6 +458,8 @@ class Server:
             VpcSecurityGroupIds=security_group_ids,
             Tags=[dict(Key=k, Value=v) for k, v in tags.items()],
         )
+
+    create_rds = run_rds  # alias
 
     def start_ec2(self, ec2_client):
         """
@@ -516,7 +520,7 @@ class Server:
         ec2_client,
         allocation_id: str,
         check_exists: bool = True,
-    ):
+    ) -> T.Optional[dict]:
         """
         Associate the given Elastic IP address with the EC2 instance.
         Note that this operation is idempotent, it will disassociate and re-associate
@@ -532,6 +536,9 @@ class Server:
         :param allocation_id: the EIP allocation id, not the pulibc ip,
             example "eipalloc-1a2b3c4d"
         :param check_exists: check if the EC2 instance exists before associating.
+
+        :return: if we actually send the ``rds_client.associate_address`` API,
+            it returns the response of that API. Otherwise, it returns None.
         """
         if check_exists:
             ec2_inst = self.get_ec2(ec2_client, id=self.id)
@@ -545,11 +552,11 @@ class Server:
         address_data = res["Addresses"][0]
         public_id = address_data["PublicIp"]
         instance_id = address_data.get("InstanceId", "invalid-instance-id")
-        if instance_id == self.ec2_inst.id:
-            return  # already associated
+        if instance_id == self.ec2_inst.id:  # already associated
+            return None
 
         # associate eip address
-        ec2_client.associate_address(
+        return ec2_client.associate_address(
             AllocationId=allocation_id,
             InstanceId=self.ec2_inst.id,
         )
@@ -559,7 +566,7 @@ class Server:
         rds_client,
         master_password: str,
         check_exists: bool = True,
-    ):
+    ) -> T.Optional[str]:
         """
         Update the DB instance master password. When you recover the DB instance
         from a snapshot, the master password is the same as the password when you
@@ -570,6 +577,9 @@ class Server:
         这时候再继续用开发环境的密码肯定不妥, 所以需要更新密码. 该方法可以做到这一点.
         并且这个方法是幂等的, 如果密码已经设置好了, 则什么也不会做. 如果密码没有被设置过, 则
         会设置密码.
+
+        :return: if we actually send the ``rds_client.modify_db_instance`` API,
+            it returns the response of that API. Otherwise, it returns None.
         """
         if check_exists:
             rds_inst = self.get_rds(rds_client, id=self.id)
@@ -585,9 +595,9 @@ class Server:
             == master_password_digest
         ):
             # do nothing
-            return
+            return None
 
-        rds_client.modify_db_instance(
+        response = rds_client.modify_db_instance(
             DBInstanceIdentifier=self.rds_inst.id,
             MasterUserPassword=master_password,
             ApplyImmediately=True,
@@ -599,6 +609,8 @@ class Server:
                 dict(Key="tech:master_password_digest", Value=master_password_digest)
             ],
         )
+
+        return response
 
     def create_db_snapshot(
         self,
@@ -631,7 +643,7 @@ class Server:
         rds_client,
         keep_n: int = 3,
         keep_days: int = 365,
-    ):
+    ) -> T.Optional[T.List[dict]]:
         """
         Clean up old RDS DB snapshots of this server.
 
@@ -644,6 +656,9 @@ class Server:
         :param keep_days: delete snapshots older than N days if we have more than N snapshots.
 
         todo: use paginator to list existing snapshots
+
+        :return: if we actually send the ``rds_client.delete_db_snapshot`` API,
+            it returns the list of response of that API. Otherwise, it returns None.
         """
         # get the list of manual created snapshots
         res = rds_client.describe_db_snapshots(
@@ -660,12 +675,15 @@ class Server:
             )
         )
         if len(snapshot_list) <= keep_n:
-            return
+            return None
         now = get_utc_now()
+        response_list = []
         for snapshot in snapshot_list[keep_n:]:
             create_time = snapshot["SnapshotCreateTime"]
             create_time = create_time.replace(tzinfo=timezone.utc)
             if (now - create_time).total_seconds() > (keep_days * 86400):
-                rds_client.delete_db_snapshot(
+                response = rds_client.delete_db_snapshot(
                     DBSnapshotIdentifier=snapshot["DBSnapshotIdentifier"],
                 )
+                response_list.append(response)
+        return response_list
