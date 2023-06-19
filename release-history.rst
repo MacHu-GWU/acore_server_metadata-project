@@ -15,6 +15,19 @@ x.y.z (Backlog)
 **Miscellaneous**
 
 
+0.4.1 (2023-06-19)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+**Features and Improvements**
+
+- add the following public API:
+    - ``acore_server_metadata.api.Server.start_ec2``
+    - ``acore_server_metadata.api.Server.start_rds``
+    - ``acore_server_metadata.api.Server.stop_ec2``
+    - ``acore_server_metadata.api.Server.stop_rds``
+    - ``acore_server_metadata.api.Server.delete_ec2``
+    - ``acore_server_metadata.api.Server.delete_rds``
+
+
 0.3.1 (2023-06-19)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 **Features and Improvements**
