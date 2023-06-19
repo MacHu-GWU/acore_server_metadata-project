@@ -15,6 +15,19 @@ x.y.z (Backlog)
 **Miscellaneous**
 
 
+0.4.2 (2023-06-19)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+**Features and Improvements**
+
+**Minor Improvements**
+
+- ``acore_server_metadata.api.Server.associate_eip_address`` now returns API response or None
+- ``acore_server_metadata.api.Server.update_db_master_password`` now returns API response or None
+- ``acore_server_metadata.api.Server.cleanup_db_snapshot`` now returns API response or None
+- add ``acore_server_metadata.api.Server.create_ec2``, it is a alias of ``run_ec2``
+- add ``acore_server_metadata.api.Server.create_rds``, it is a alias of ``run_rds``
+
+
 0.4.1 (2023-06-19)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 **Features and Improvements**
