@@ -7,6 +7,7 @@ from datetime import timezone
 from simple_aws_ec2.api import Ec2Instance, EC2InstanceStatusEnum
 from simple_aws_rds.api import RDSDBInstance, RDSDBInstanceStatusEnum
 
+from .vendor.hashes import hashes
 from .exc import (
     ServerNotFoundError,
     ServerNotUniqueError,
@@ -501,16 +502,36 @@ class Server:
         在数据库运维过程中, 我们都是从自己备份的 Snapshot 启动 DB 实例. 它的管理员密码会继承
         备份 Snapshot 的时候的密码. 比如我们希望用开发环境的 snapshot 创建生产环境的数据库,
         这时候再继续用开发环境的密码肯定不妥, 所以需要更新密码. 该方法可以做到这一点.
+        并且这个方法是幂等的, 如果密码已经设置好了, 则什么也不会做. 如果密码没有被设置过, 则
+        会设置密码.
         """
         if check_exists:
             rds_inst = self.get_rds(rds_client, id=self.id)
             if rds_inst is None:
                 raise ServerNotFoundError(f"RDS DB instance {self.id!r} does not exist")
+        else:
+            rds_inst = self.rds_inst
+
+        hashes.use_sha256()
+        master_password_digest = hashes.of_str(master_password, hexdigest=True)
+        if (
+            rds_inst.tags.get("tech:master_password_digest", "invalid")
+            == master_password_digest
+        ):
+            # do nothing
+            return
 
         rds_client.modify_db_instance(
             DBInstanceIdentifier=self.rds_inst.id,
             MasterUserPassword=master_password,
             ApplyImmediately=True,
+        )
+
+        rds_client.add_tags_to_resource(
+            ResourceName=rds_inst.db_instance_arn,
+            Tags=[
+                dict(Key="tech:master_password_digest", Value=master_password_digest)
+            ],
         )
 
     def create_db_snapshot(
