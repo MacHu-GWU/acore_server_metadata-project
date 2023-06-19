@@ -321,6 +321,18 @@ class Server:
         self.ec2_inst = self.get_ec2(ec2_client, self.id)
         self.rds_inst = self.get_rds(rds_client, self.id)
 
+    def _get_db_snapshot_id(self) -> str:
+        """
+        Get the db snapshot id for this server, the snapshot id
+        naming convention is "${server_id}-%Y-%m-%d-%H-%M-%S".
+        """
+        now = get_utc_now()
+        snapshot_id = "{}-{}".format(
+            self.id,
+            now.strftime("%Y-%m-%d-%H-%M-%S"),
+        )
+        return snapshot_id
+
     # --------------------------------------------------------------------------
     # Operations
     # --------------------------------------------------------------------------
@@ -445,6 +457,60 @@ class Server:
             Tags=[dict(Key=k, Value=v) for k, v in tags.items()],
         )
 
+    def start_ec2(self, ec2_client):
+        """
+        Start the EC2 instance of this server.
+        """
+        self.ec2_inst.start_instance(ec2_client)
+
+    def start_rds(self, rds_client):
+        """
+        Start the RDS DB instance of this server.
+        """
+        self.rds_inst.start_db_instance(rds_client)
+
+    def stop_ec2(self, ec2_client):
+        """
+        Stop the EC2 instance of this server.
+        """
+        self.ec2_inst.stop_instance(ec2_client)
+
+    def stop_rds(self, rds_client):
+        """
+        Stop the RDS DB instance of this server.
+        """
+        self.rds_inst.stop_db_instance(rds_client)
+
+    def delete_ec2(self, ec2_client):
+        """
+        Delete the EC2 instance of this server.
+        """
+        self.ec2_inst.terminate_instance(ec2_client)
+
+    def delete_rds(self, rds_client, create_final_snapshot: bool = True):
+        """
+        Delete the RDS DB instance of this server.
+
+        :param create_final_snapshot: if True, then create a final snapshot
+            before deleting the DB instance. and keep automated backups.
+            if False, then will not create final snapshot, and also delete
+            automated backups.
+        """
+        if create_final_snapshot:
+            snapshot_id = self._get_db_snapshot_id()
+            self.rds_inst.delete_db_instance(
+                rds_client=rds_client,
+                skip_final_snapshot=False,
+                final_db_snapshot_identifier=snapshot_id,
+                delete_automated_backups=False,
+            )
+        else:
+            self.rds_inst.delete_db_instance(
+                rds_client=rds_client,
+                skip_final_snapshot=True,
+                delete_automated_backups=True,
+            )
+
     def associate_eip_address(
         self,
         ec2_client,
@@ -550,11 +616,7 @@ class Server:
             rds_inst = self.get_rds(rds_client, id=self.id)
             if rds_inst is None:
                 raise ServerNotFoundError(f"RDS DB instance {self.id!r} does not exist")
-        now = get_utc_now()
-        snapshot_id = "{}-{}".format(
-            self.id,
-            now.strftime("%Y-%m-%d-%H-%M-%S"),
-        )
+        snapshot_id = self._get_db_snapshot_id()
         rds_client.create_db_snapshot(
             DBSnapshotIdentifier=snapshot_id,
             DBInstanceIdentifier=self.rds_inst.id,
