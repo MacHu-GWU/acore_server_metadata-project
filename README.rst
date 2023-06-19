@@ -116,10 +116,22 @@ Welcome to ``acore_server_metadata`` Documentation
 
 .. code-block:: python
 
-    # 启动新的 EC2
-    >>> server.run_ec2(ec_client, ami_id, instance_type, ...)
-    # 启动新的 DB Instance
+    # 创建新的 EC2
+    >>> server.run_ec2(ec2_client, ami_id, instance_type, ...)
+    # 创建新的 DB Instance
     >>> server.run_rds(rds_client, db_snapshot_identifier, db_instance_class, ...)
+    # 启动 EC2
+    >>> server.start_ec2(ec2_client)
+    # 启动 RDS
+    >>> server.start_rds(rds_client)
+    # 停止 EC2
+    >>> server.stop_ec2(ec2_client)
+    # 停止 RDS
+    >>> server.stop_rds(rds_client)
+    # 删除 EC2
+    >>> server.delete_ec2(ec2_client)
+    # 删除 RDS
+    >>> server.delete_rds(rds_client)
     # 更新 DB 的 master password
     >>> server.update_db_master_password(rds_client, master_password)
     # 关联 EIP 地址
