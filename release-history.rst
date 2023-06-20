@@ -15,10 +15,15 @@ x.y.z (Backlog)
 **Miscellaneous**
 
 
+0.4.3 (2023-06-19)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+**Minor Improvements**
+
+- ``acore_server_metadata.api.Server.run_ec2`` and ``acore_server_metadata.api.Server.run_rds`` now receive additional kwargs. The ``allocated_storage`` is no longer mandatory.
+
+
 0.4.2 (2023-06-19)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-**Features and Improvements**
-
 **Minor Improvements**
 
 - ``acore_server_metadata.api.Server.associate_eip_address`` now returns API response or None

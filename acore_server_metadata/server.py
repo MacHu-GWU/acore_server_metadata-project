@@ -347,10 +347,11 @@ class Server:
         iam_instance_profile_arn: str,
         tags: T.Optional[T.Dict[str, str]] = None,
         check_exists: bool = True,
+        **kwargs,
     ):
         """
         Launch a new EC2 instance as the Game server from the AMI.
-        The configurations are already optimized for the Game server.
+        The mandatory arguments match how we launch a new WOW server.
 
         在服务器运维过程中, 我们都是从自己构建的游戏服务器 AMI 启动 EC2 实例. 它的 Tag 必须
         要符合一定的规则 (详情请参考 :class:`Server`). 本方法会自动为新的 EC2 实例打上这些
@@ -397,6 +398,7 @@ class Server:
                     Tags=[dict(Key=k, Value=v) for k, v in tags.items()],
                 ),
             ],
+            **kwargs,
         )
 
     create_ec2 = run_ec2  # alias
@@ -409,13 +411,13 @@ class Server:
         db_subnet_group_name: str,
         security_group_ids: T.List[str],
         multi_az: bool = False,
-        allocated_storage: int = 20,
         tags: T.Optional[T.Dict[str, str]] = None,
         check_exists: bool = True,
+        **kwargs,
     ):
         """
         Launch a new RDS DB instance from the backup snapshot.
-        The configurations are already optimized for the Game server.
+        The mandatory arguments match how we launch a new WOW database.
 
         在数据库运维过程中, 我们都是从自己备份的 Snapshot 启动 DB 实例. 它的 Tag 必须
         要符合一定的规则 (详情请参考 :class:`Server`). 本方法会自动为新的 DB 实例打上这些
@@ -452,11 +454,11 @@ class Server:
             DBInstanceClass=db_instance_class,
             MultiAZ=multi_az,
             DBSubnetGroupName=db_subnet_group_name,
-            AllocatedStorage=allocated_storage,
             PubliclyAccessible=False,  # you should never expose your database to the public
             AutoMinorVersionUpgrade=False,  # don't update MySQL minor version, PLEASE!
             VpcSecurityGroupIds=security_group_ids,
             Tags=[dict(Key=k, Value=v) for k, v in tags.items()],
+            **kwargs,
         )
 
     create_rds = run_rds  # alias
@@ -531,6 +533,11 @@ class Server:
         当对生产服务器进行运维时, 我们需要维护给每个服务器一个固定 IP. 我们可以通过定义一个
         映射表, 然后用这个方法确保每个服务器的 IP 是正确的 (该方法是幂等的, 如果已经设置好了
         则什么也不会做).
+
+        Reference:
+
+        - https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/ec2/client/describe_addresses.html
+        - https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/ec2/client/associate_address.html
 
         :param ec2_client: boto3 ec2 client
         :param allocation_id: the EIP allocation id, not the pulibc ip,
