@@ -448,6 +448,20 @@ class Server:
             tags = dict()
         tags[settings.ID_TAG_KEY] = self.id
         tags["tech:machine_creator"] = "acore_server_metadata"
+
+        res = rds_client.describe_db_snapshots(
+            DBSnapshotIdentifier=db_snapshot_identifier,
+        )
+        db_snapshot_list = res.get("DBSnapshots", [])
+        if len(db_snapshot_list):
+            db_snapshot_tags = {
+                dct["Key"]: dct["Value"]
+                for dct in db_snapshot_list[0].get("TagList", [])
+            }
+            master_password_digest = db_snapshot_tags.get("tech:master_password_digest")
+            if master_password_digest:
+                tags["tech:master_password_digest"] = master_password_digest
+
         rds_client.restore_db_instance_from_db_snapshot(
             DBInstanceIdentifier=self.id,
             DBSnapshotIdentifier=db_snapshot_identifier,
@@ -457,6 +471,7 @@ class Server:
             PubliclyAccessible=False,  # you should never expose your database to the public
             AutoMinorVersionUpgrade=False,  # don't update MySQL minor version, PLEASE!
             VpcSecurityGroupIds=security_group_ids,
+            CopyTagsToSnapshot=True,
             Tags=[dict(Key=k, Value=v) for k, v in tags.items()],
             **kwargs,
         )
