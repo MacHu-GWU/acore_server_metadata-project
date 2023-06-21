@@ -568,19 +568,20 @@ class Server:
                 raise ServerAlreadyExistsError(
                     f"EC2 instance {self.id!r} does not exist"
                 )
+        else:
+            ec2_inst = self.ec2_inst
 
         # check if this allocation id is already associated with an instance
         res = ec2_client.describe_addresses(AllocationIds=[allocation_id])
         address_data = res["Addresses"][0]
-        public_id = address_data["PublicIp"]
         instance_id = address_data.get("InstanceId", "invalid-instance-id")
-        if instance_id == self.ec2_inst.id:  # already associated
+        if instance_id == ec2_inst.id:  # already associated
             return None
 
         # associate eip address
         return ec2_client.associate_address(
             AllocationId=allocation_id,
-            InstanceId=self.ec2_inst.id,
+            InstanceId=ec2_inst.id,
         )
 
     def update_db_master_password(
@@ -620,7 +621,7 @@ class Server:
             return None
 
         response = rds_client.modify_db_instance(
-            DBInstanceIdentifier=self.rds_inst.id,
+            DBInstanceIdentifier=rds_inst.id,
             MasterUserPassword=master_password,
             ApplyImmediately=True,
         )
@@ -650,12 +651,15 @@ class Server:
             rds_inst = self.get_rds(rds_client, id=self.id)
             if rds_inst is None:
                 raise ServerNotFoundError(f"RDS DB instance {self.id!r} does not exist")
+        else:
+            rds_inst = self.rds_inst
+
         snapshot_id = self._get_db_snapshot_id()
         rds_client.create_db_snapshot(
             DBSnapshotIdentifier=snapshot_id,
-            DBInstanceIdentifier=self.rds_inst.id,
+            DBInstanceIdentifier=rds_inst.id,
             Tags=[
-                dict(Key=settings.ID_TAG_KEY, Value=self.id),
+                dict(Key=settings.ID_TAG_KEY, Value=rds_inst.id),
                 dict(Key="tech:machine_creator", Value="acore_server_metadata"),
             ],
         )
