@@ -2,4 +2,4 @@
 
 from . import exc
 from .settings import settings
-from .server import Server
+from .server.api import Server
