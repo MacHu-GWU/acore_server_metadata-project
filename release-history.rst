@@ -15,6 +15,18 @@ x.y.z (Backlog)
 **Miscellaneous**
 
 
+0.5.1 (2023-06-22)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+**Features and Improvements**
+
+- Now the ``acore_server_metadata.api.Server.get_server()`` method will always return a ``Server`` object. If the ec2 or rds doesn't not exists, then the ``ec2_inst`` or ``rds_inst`` attribure of the ``Server`` object will be ``None``. This behavior was returning ``None`` before.
+- Similarly the ``acore_server_metadata.api.Server.batch_get_server()`` method will always return a ``Server`` object for specific id.
+
+**Minor Improvements**
+
+- add many unit test to cover the server operations API.
+
+
 0.4.5 (2023-06-21)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 **Bugfixes**
