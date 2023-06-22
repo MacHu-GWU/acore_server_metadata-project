@@ -16,6 +16,7 @@ from ..exc import (
 from ..settings import settings
 
 from .server_status import ServerStatusMixin
+from .server_operation import ServerOperationMixin
 
 
 @dataclasses.dataclass
@@ -46,6 +47,7 @@ class BaseServer:
 class Server(
     BaseServer,
     ServerStatusMixin,
+    ServerOperationMixin,
 ):
     """
     "Server" 是一个逻辑对象, 它代表着一个 Realm 背后的EC2 实例游戏服务器 和 RDS 数据库实例.

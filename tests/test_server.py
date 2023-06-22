@@ -12,9 +12,7 @@ from acore_server_metadata.tests.mock_aws import BaseMockTest
 from acore_server_metadata.settings import settings
 from acore_server_metadata.server.api import (
     Server,
-    ServerNotFoundError,
     ServerNotUniqueError,
-    ServerAlreadyExistsError,
 )
 
 
@@ -124,15 +122,22 @@ class TestServer(BaseMockTest):
         self.launch_ec2(id1)
         with pytest.raises(ServerNotUniqueError):
             Server.batch_get_server(
-                ids=[id1, ], ec2_client=self.ec2_client, rds_client=self.rds_client
+                ids=[
+                    id1,
+                ],
+                ec2_client=self.ec2_client,
+                rds_client=self.rds_client,
             )
 
         # not exists
         server_mapper = Server.batch_get_server(
-            ids=["test3",], ec2_client=self.ec2_client, rds_client=self.rds_client
+            ids=[
+                "test3",
+            ],
+            ec2_client=self.ec2_client,
+            rds_client=self.rds_client,
         )
         assert server_mapper["test3"].is_exists() is False
-
 
     def _test_status(self):
         id = "sbx-blue"
@@ -149,7 +154,7 @@ class TestServer(BaseMockTest):
         assert server.is_rds_exists() is True
         assert server.is_rds_running() is True
 
-        Ec2Instance(id=ec2_id, status="").stop_instance(self.ec2_client)
+        server.stop_ec2(self.ec2_client)
         server.refresh(ec2_client=self.ec2_client, rds_client=self.rds_client)
         assert server.is_exists() is True
         assert server.is_running() is False
@@ -158,7 +163,7 @@ class TestServer(BaseMockTest):
         assert server.is_rds_exists() is True
         assert server.is_rds_running() is True
 
-        RDSDBInstance(id=rds_id, status="").stop_db_instance(self.rds_client)
+        server.stop_rds(self.rds_client)
         server.refresh(ec2_client=self.ec2_client, rds_client=self.rds_client)
         assert server.is_exists() is True
         assert server.is_running() is False
@@ -167,125 +172,79 @@ class TestServer(BaseMockTest):
         assert server.is_rds_exists() is True
         assert server.is_rds_running() is False
 
-        Ec2Instance(id=ec2_id, status="").terminate_instance(self.ec2_client)
-        server.refresh(ec2_client=self.ec2_client, rds_client=self.rds_client)
-        assert server.is_exists() is False
-        assert server.is_running() is False
-        assert server.is_ec2_exists() is False
-        assert server.is_ec2_running() is False
-        assert server.is_rds_exists() is True
-        assert server.is_rds_running() is False
-
-        RDSDBInstance(id=rds_id, status="").delete_db_instance(self.rds_client)
+        server.delete_ec2(self.ec2_client)
         server.refresh(ec2_client=self.ec2_client, rds_client=self.rds_client)
         assert server.is_exists() is False
         assert server.is_running() is False
         assert server.is_ec2_exists() is False
         assert server.is_ec2_running() is False
-        assert server.is_rds_exists() is False
-        assert server.is_rds_running() is False
-
-        # print(len(Ec2Instance.query(self.bsm.ec2_client).all()))
-
-    def _test1(self):
-        ec2_id, rds_id = self.start_instance(id="test")
-
-        # server exists
-        server = Server.get_server(
-            id="test",
-            ec2_client=self.bsm.ec2_client,
-            rds_client=self.bsm.rds_client,
-        )
-        assert server.is_exists() is True
-        assert server.is_running() is True
-        assert server.is_ec2_exists() is True
-        assert server.is_ec2_running() is True
-        assert server.is_rds_exists() is True
-        assert server.is_rds_running() is True
-
-        server.ec2_inst.stop_instance(self.bsm.ec2_client)
-        server.rds_inst.stop_db_instance(self.bsm.rds_client)
-        server.refresh(ec2_client=self.bsm.ec2_client, rds_client=self.bsm.rds_client)
-        assert server.is_exists() is True
-        assert server.is_running() is False
-        assert server.is_ec2_exists() is True
-        assert server.is_ec2_running() is False
         assert server.is_rds_exists() is True
         assert server.is_rds_running() is False
 
-        # server not exists
-        server = Server.get_server(
-            id="dev",
-            ec2_client=self.bsm.ec2_client,
-            rds_client=self.bsm.rds_client,
-        )
-        assert server is None
-
-        server = Server(id="dev")
-        server.refresh(ec2_client=self.bsm.ec2_client, rds_client=self.bsm.rds_client)
+        server.delete_rds(self.rds_client, create_final_snapshot=False)
+        server.refresh(ec2_client=self.ec2_client, rds_client=self.rds_client)
         assert server.is_exists() is False
         assert server.is_running() is False
         assert server.is_ec2_exists() is False
         assert server.is_ec2_running() is False
         assert server.is_rds_exists() is False
         assert server.is_rds_running() is False
-
-        # start another server with the same tag, then we got collision issue
-        self.start_instance(id="test")
-        with pytest.raises(ServerNotUniqueError):
-            server = Server.get_server(
-                id="test",
-                ec2_client=self.bsm.ec2_client,
-                rds_client=self.bsm.rds_client,
-            )
-
-    def _test_batch_get_server(self):
-        # some server exists, some not
-        self.start_instance(id="prod-1")
-        server_mapper = Server.batch_get_server(
-            ids=["prod-1", "prod-2"],
-            ec2_client=self.bsm.ec2_client,
-            rds_client=self.bsm.rds_client,
-        )
-        server1 = server_mapper["prod-1"]
-        assert server1.is_exists() is True
-        assert server1.is_running() is True
-        assert server1.is_ec2_exists() is True
-        assert server1.is_ec2_running() is True
-        assert server1.is_rds_exists() is True
-        assert server1.is_rds_running() is True
-        assert server_mapper["prod-2"] is None
-
-        # start another server with the same tag, then we got collision issue
-        self.start_instance(id="prod-1")
-        with pytest.raises(ServerNotUniqueError):
-            Server.batch_get_server(
-                ids=["prod-1", "prod-2"],
-                ec2_client=self.bsm.ec2_client,
-                rds_client=self.bsm.rds_client,
-            )
 
     def _test_operations(self):
-        server = Server(id="test-operations")
-        self.start_instance(server.id)
-        server.refresh(ec2_client=self.bsm.ec2_client, rds_client=self.bsm.rds_client)
+        id = "sbx-green"
+        ec2_id = self.launch_ec2(id)
+        rds_id = self.launch_rds(id)
 
-        server.create_db_snapshot(rds_client=self.bsm.rds_client)
-        time.sleep(1)
-        server.create_db_snapshot(rds_client=self.bsm.rds_client)
-        time.sleep(1)
-        server.create_db_snapshot(rds_client=self.bsm.rds_client)
+        server = Server.get_server(
+            id=id, ec2_client=self.ec2_client, rds_client=self.rds_client
+        )
+
+        # allocate eip address
+        res = self.ec2_client.allocate_address()
+        public_id = res["PublicIp"]
+        allocation_id = res["AllocationId"]
+
+        res = server.associate_eip_address(
+            ec2_client=self.ec2_client, allocation_id=allocation_id
+        )
+        assert res is not None
+
+        server.refresh(ec2_client=self.ec2_client, rds_client=self.rds_client)
+        assert server.ec2_inst.public_ip == public_id
+
+        # this api will do nothing
+        res = server.associate_eip_address(
+            ec2_client=self.ec2_client, allocation_id=allocation_id
+        )
+        assert res is None
+
+        # set master password
+        res = server.update_db_master_password(
+            rds_client=self.rds_client, master_password="newpass"
+        )
+        assert res is not None
+
+        # this api will do nothing
+        server.refresh(ec2_client=self.ec2_client, rds_client=self.rds_client)
+        res = server.update_db_master_password(
+            rds_client=self.rds_client, master_password="newpass"
+        )
+        assert res is None
+
+        for _ in range(3):
+            server.create_db_snapshot(rds_client=self.bsm.rds_client)
+            time.sleep(1)
 
         server.cleanup_db_snapshot(
-            rds_client=self.bsm.rds_client, keep_n=1, keep_days=0
+            rds_client=self.bsm.rds_client,
+            keep_n=1,
+            keep_days=0,
         )
 
     def test(self):
         self._test_constructor()
         self._test_status()
-        # self._test()
-        # self._test_batch_get_server()
-        # self._test_operations()
+        self._test_operations()
 
 
 if __name__ == "__main__":
