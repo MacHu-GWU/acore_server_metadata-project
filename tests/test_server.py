@@ -7,6 +7,7 @@ import pytest
 
 from simple_aws_ec2.api import Ec2Instance
 from simple_aws_rds.api import RDSDBInstance
+from acore_constants.api import TagKey
 
 from acore_server_metadata.tests.mock_aws import BaseMockTest
 from acore_server_metadata.settings import settings
@@ -53,7 +54,7 @@ class TestServer(BaseMockTest):
                 {
                     "ResourceType": "instance",
                     "Tags": [
-                        {"Key": settings.ID_TAG_KEY, "Value": id},
+                        {"Key": TagKey.SERVER_ID, "Value": id},
                     ],
                 },
             ],
@@ -70,7 +71,7 @@ class TestServer(BaseMockTest):
             DBInstanceClass="db.t2.micro",
             Engine="mysql",
             Tags=[
-                {"Key": settings.ID_TAG_KEY, "Value": id},
+                {"Key": TagKey.SERVER_ID, "Value": id},
             ],
         )["DBInstance"]["DBInstanceIdentifier"]
         return rds_id

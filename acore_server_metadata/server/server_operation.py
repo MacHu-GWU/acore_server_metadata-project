@@ -3,6 +3,8 @@
 import typing as T
 from datetime import timezone
 
+from acore_constants.api import TagKey
+
 from ..utils import get_utc_now
 from ..exc import (
     ServerNotFoundError,
@@ -79,7 +81,7 @@ class ServerOperationMixin:
         if tags is None:
             tags = dict()
         tags["Name"] = self.id
-        tags[settings.ID_TAG_KEY] = self.id  # the realm tag indicator has to match
+        tags[TagKey.SERVER_ID] = self.id  # the realm tag indicator has to match
         tags["tech:machine_creator"] = "acore_server_metadata"
         return ec2_client.run_instances(
             ImageId=ami_id,
@@ -147,7 +149,7 @@ class ServerOperationMixin:
                 )
         if tags is None:
             tags = dict()
-        tags[settings.ID_TAG_KEY] = self.id
+        tags[TagKey.SERVER_ID] = self.id
         tags["tech:machine_creator"] = "acore_server_metadata"
 
         res = rds_client.describe_db_snapshots(
@@ -376,7 +378,7 @@ class ServerOperationMixin:
             DBSnapshotIdentifier=snapshot_id,
             DBInstanceIdentifier=rds_inst.id,
             Tags=[
-                dict(Key=settings.ID_TAG_KEY, Value=rds_inst.id),
+                dict(Key=TagKey.SERVER_ID, Value=rds_inst.id),
                 dict(Key="tech:machine_creator", Value="acore_server_metadata"),
             ],
         )

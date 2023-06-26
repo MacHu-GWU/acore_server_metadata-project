@@ -5,13 +5,11 @@ import dataclasses
 
 from simple_aws_ec2.api import Ec2Instance, EC2InstanceStatusEnum
 from simple_aws_rds.api import RDSDBInstance, RDSDBInstanceStatusEnum
+from acore_constants.api import TagKey
 
 from ..utils import group_by
-from ..vendor.hashes import hashes
 from ..exc import (
-    ServerNotFoundError,
     ServerNotUniqueError,
-    ServerAlreadyExistsError,
 )
 from ..settings import settings
 
@@ -107,7 +105,7 @@ class Server(
         return Ec2Instance.query(
             ec2_client=ec2_client,
             filters=[
-                dict(Name=f"tag:{settings.ID_TAG_KEY}", Values=ids),
+                dict(Name=f"tag:{TagKey.SERVER_ID}", Values=ids),
                 # we don't count terminated instances as existing
                 dict(
                     Name="instance-state-name",
@@ -149,7 +147,7 @@ class Server(
                 )
                 and (
                     rds_inst.tags.get(
-                        settings.ID_TAG_KEY,
+                        TagKey.SERVER_ID,
                         "THIS_IS_IMPOSSIBLE_TO_MATCH",
                     )
                     in ids
@@ -282,10 +280,10 @@ class Server(
 
         # group by server id
         ec2_inst_mapper = group_by(
-            ec2_inst_list, key=lambda inst: inst.tags[settings.ID_TAG_KEY]
+            ec2_inst_list, key=lambda inst: inst.tags[TagKey.SERVER_ID]
         )
         rds_inst_mapper = group_by(
-            rds_inst_list, key=lambda inst: inst.tags[settings.ID_TAG_KEY]
+            rds_inst_list, key=lambda inst: inst.tags[TagKey.SERVER_ID]
         )
 
         # merge data
