@@ -76,13 +76,13 @@ Welcome to ``acore_server_metadata`` Documentation
             id='i-1a2b3c4d',
             status='running',
             ...
-            tags={'realm': 'prod'},
+            tags={'wserver:server_id': 'prod'},
             data=...
         ),
         rds_inst=RDSDBInstance(
             id='db-inst-1',
             status='available',
-            tags={'realm': 'prod'},
+            tags={'wserver:server_id': 'prod'},
             data=...
         ),
     )

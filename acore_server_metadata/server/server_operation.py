@@ -10,7 +10,6 @@ from ..exc import (
     ServerNotFoundError,
     ServerAlreadyExistsError,
 )
-from ..settings import settings
 from ..vendor.hashes import hashes
 
 if T.TYPE_CHECKING:  # pragma: no cover

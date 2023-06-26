@@ -11,7 +11,6 @@ from ..utils import group_by
 from ..exc import (
     ServerNotUniqueError,
 )
-from ..settings import settings
 
 from .server_status import ServerStatusMixin
 from .server_operation import ServerOperationMixin
