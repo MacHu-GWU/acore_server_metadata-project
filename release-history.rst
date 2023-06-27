@@ -15,6 +15,19 @@ x.y.z (Backlog)
 **Miscellaneous**
 
 
+0.6.1 (2023-06-27)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+**Features and Improvements**
+
+- add the following public API:
+    - ``acore_server_metadata.api.Server.from_ec2_inside``
+    - ``acore_server_metadata.api.get_boto_ses_from_ec2_inside``
+
+**Miscellaneous**
+
+- upgrade dependencies.
+
+
 0.5.2 (2023-06-26)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 **Minor Improvements**
