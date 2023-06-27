@@ -8,6 +8,7 @@ def test():
 
     # top level API
     _ = api.exc
+    _ = api.get_boto_ses_from_ec2_inside
     _ = api.settings
     _ = api.Server
 
@@ -17,6 +18,7 @@ def test():
 
     _ = api.Server.get_ec2
     _ = api.Server.get_rds
+    _ = api.Server.from_ec2_inside
     _ = api.Server.get_server
     _ = api.Server.batch_get_server
     _ = api.Server.is_exists

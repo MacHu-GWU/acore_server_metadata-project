@@ -1,4 +1,4 @@
 # Core dependencies goes here
-simple_aws_ec2>=0.5.1,<1.0.0
+simple_aws_ec2>=0.5.2,<1.0.0
 simple_aws_rds>=0.4.1,<1.0.0
 acore_constants>=0.1.1,<2.0.0

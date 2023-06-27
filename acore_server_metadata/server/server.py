@@ -7,7 +7,7 @@ from simple_aws_ec2.api import Ec2Instance, EC2InstanceStatusEnum
 from simple_aws_rds.api import RDSDBInstance, RDSDBInstanceStatusEnum
 from acore_constants.api import TagKey
 
-from ..utils import group_by
+from ..utils import group_by, get_boto_ses_from_ec2_inside
 from ..exc import (
     ServerNotUniqueError,
 )
@@ -201,12 +201,44 @@ class Server(
             return rds_inst_list[0]
 
     @classmethod
+    def from_ec2_inside(
+        cls,
+        ec2_client = None,
+        rds_client = None,
+    ) -> "Server":  # pragma: no cover
+        """
+        用 "自省" 的方式, 从 EC2 实例内部通过 metadata API 获得自己的 instance id,
+        进而获得 Server 的 metadata. 如果这台 EC2 不是一个魔兽世界服务器, 那么将会抛出异常.
+
+        :param ec2_client: optional EC2 client, if not given, will automatically
+            create on using EC2 IAM role.
+        :param rds_client: optional RDS client, if not given, will automatically
+            create on using EC2 IAM role.
+        """
+        boto_ses = None
+        if ec2_client is None:
+            boto_ses = get_boto_ses_from_ec2_inside()
+            ec2_client = boto_ses.client("ec2")
+        if rds_client is None:
+            if boto_ses is None:
+                boto_ses = get_boto_ses_from_ec2_inside()
+            rds_client = boto_ses.client("rds")
+        ec2_inst = Ec2Instance.from_ec2_inside(ec2_client)
+        server_id = ec2_inst.tags[TagKey.SERVER_ID]
+        rds_inst = cls.get_rds(rds_client, server_id)
+        return cls(
+            id=server_id,
+            ec2_inst=ec2_inst,
+            rds_inst=rds_inst,
+        )
+
+    @classmethod
     def get_server(
         cls,
         id: str,
         ec2_client,
         rds_client,
-    ) -> T.Optional["Server"]:
+    ) -> "Server":
         """
         尝试获得某个 Server 的 EC2 和 RDS 信息. 这个方法会同时调用 :meth:`Server.get_ec2`
         和 :meth:`Server.get_rds`. 无论 EC2 还是 RDS 存不存在, 它都会返回一个 :class:`Server`
