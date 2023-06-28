@@ -9,7 +9,7 @@ try:
 except ImportError:
     pass
 
-from simple_aws_ec2 import Ec2Instance
+from simple_aws_ec2.api import EC2MetadataCache
 
 
 def get_utc_now() -> datetime:
@@ -32,6 +32,11 @@ def group_by(
     }
 
 
-def get_boto_ses_from_ec2_inside() -> "boto3.session.Session":
-    aws_region = Ec2Instance.get_placement_region()
-    return boto3.session.Session(region_name=aws_region)
+def get_boto_ses_from_ec2_inside(
+    refresh_cache: bool = True,
+    ignore_cache: bool = False,
+) -> "boto3.session.Session":
+    return EC2MetadataCache.load().get_boto_ses_from_ec2_inside(
+        refresh_cache=refresh_cache,
+        ignore_cache=ignore_cache,
+    )
