@@ -1,6 +1,6 @@
 # This requirements file should only include dependencies for testing
 pytest                                  # test framework
 pytest-cov                              # coverage test
-moto
+moto>=4.2.14,<5.0.0
 rich
 boto_session_manager>=1.3.1,<2.0.0
