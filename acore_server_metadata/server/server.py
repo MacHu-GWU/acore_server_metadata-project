@@ -2,6 +2,7 @@
 
 import typing as T
 import dataclasses
+from datetime import datetime
 
 from simple_aws_ec2.api import Ec2Instance, EC2InstanceStatusEnum
 from simple_aws_rds.api import RDSDBInstance, RDSDBInstanceStatusEnum
@@ -349,3 +350,25 @@ class Server(
         """
         self.ec2_inst = self.get_ec2(ec2_client, self.id)
         self.rds_inst = self.get_rds(rds_client, self.id)
+
+    @property
+    def server_lifecycle(self) -> T.Optional[str]:
+        if self.ec2_inst is None:
+            return None
+        return self.ec2_inst.tags.get(TagKey.SERVER_LIFECYCLE)
+
+    @property
+    def wow_status(self) -> T.Optional[str]:
+        if self.ec2_inst is None:
+            return None
+        return self.ec2_inst.tags.get(TagKey.WOW_STATUS)
+
+    @property
+    def wow_status_measure_time(self) -> T.Optional[datetime]:
+        if self.ec2_inst is None:
+            return None
+        v = self.ec2_inst.tags.get(TagKey.WOW_STATUS_MEASURE_TIME)
+        if v:
+            return datetime.fromisoformat(v)
+        else:
+            return None

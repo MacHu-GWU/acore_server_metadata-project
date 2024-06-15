@@ -23,3 +23,10 @@ class ServerAlreadyExistsError(Exception):
     Raises when try to launch a new EC2 or DB instance when there is already
     a existing one.
     """
+
+
+class FailedToStartServerError(Exception):
+    """
+    Raises when the current EC2 and RDS state is not ready for
+    :meth:`acore_server_metadata.server.server_operation.ServerOperation.start_server`
+    """

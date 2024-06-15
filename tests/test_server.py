@@ -155,6 +155,10 @@ class TestServer(BaseMockTest):
         assert server.is_rds_exists() is True
         assert server.is_rds_running() is True
 
+        _ = server.server_lifecycle
+        _ = server.wow_status
+        _ = server.wow_status_measure_time
+
         server.stop_ec2(self.ec2_client)
         server.refresh(ec2_client=self.ec2_client, rds_client=self.rds_client)
         assert server.is_exists() is True

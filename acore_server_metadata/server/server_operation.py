@@ -1,5 +1,9 @@
 # -*- coding: utf-8 -*-
 
+"""
+See :class:`ServerOperationMixin` for more details.
+"""
+
 import typing as T
 from datetime import timezone
 
@@ -9,6 +13,7 @@ from ..utils import get_utc_now
 from ..exc import (
     ServerNotFoundError,
     ServerAlreadyExistsError,
+    FailedToStartServerError,
 )
 from ..vendor.hashes import hashes
 
@@ -19,6 +24,9 @@ if T.TYPE_CHECKING:  # pragma: no cover
 
 
 class ServerOperationMixin:
+    """
+    This mixin provides methods to operate the server ec2 and rds.
+    """
     def _get_db_snapshot_id(self: "Server") -> str:
         """
         Get the db snapshot id for this server, the snapshot id
@@ -46,7 +54,7 @@ class ServerOperationMixin:
         tags: T.Optional[T.Dict[str, str]] = None,
         check_exists: bool = True,
         **kwargs,
-    ) -> dict:  # pragma: no cover
+    ):  # pragma: no cover
         """
         Launch a new EC2 instance as the Game server from the AMI.
         The mandatory arguments match how we launch a new WOW server.
@@ -114,7 +122,7 @@ class ServerOperationMixin:
         tags: T.Optional[T.Dict[str, str]] = None,
         check_exists: bool = True,
         **kwargs,
-    ) -> dict:  # pragma: no cover
+    ):  # pragma: no cover
         """
         Launch a new RDS DB instance from the backup snapshot.
         The mandatory arguments match how we launch a new WOW database.
@@ -180,7 +188,38 @@ class ServerOperationMixin:
 
     create_rds = run_rds  # alias
 
-    def start_ec2(self: "Server", ec2_client) -> dict:
+    def start_server(
+        self: "Server",
+        ec2_client: "EC2Client",
+        rds_client: "RDSClient",
+    ):
+        """
+        Start a stopped server. Basically it starts the RDS instance first,
+        once the RDS instance become available, then start the EC2 instance.
+        """
+        if self.rds_inst.is_ready_to_start():
+            self.start_rds(rds_client)
+        elif self.rds_inst.is_available():
+            pass
+        else:
+            raise FailedToStartServerError(
+                "RDS instance is not available and also not ready to start"
+            )
+        self.rds_inst.wait_for_available(
+            rds_client,
+            delays=10,
+            timeout=300,
+        )
+        if self.ec2_inst.is_ready_to_start():
+            self.start_ec2(ec2_client)
+        elif self.ec2_inst.is_running():
+            pass
+        else:
+            raise FailedToStartServerError(
+                "EC2 instance is not running and also not ready to start"
+            )
+
+    def start_ec2(self: "Server", ec2_client: "EC2Client") -> dict:
         """
         Start the EC2 instance of this server.
 
@@ -188,7 +227,7 @@ class ServerOperationMixin:
         """
         return self.ec2_inst.start_instance(ec2_client)
 
-    def start_rds(self: "Server", rds_client) -> dict:
+    def start_rds(self: "Server", rds_client: "RDSClient") -> dict:
         """
         Start the RDS DB instance of this server.
 
@@ -196,7 +235,7 @@ class ServerOperationMixin:
         """
         return self.rds_inst.start_db_instance(rds_client)
 
-    def stop_ec2(self: "Server", ec2_client) -> dict:
+    def stop_ec2(self: "Server", ec2_client: "EC2Client") -> dict:
         """
         Stop the EC2 instance of this server.
 
@@ -204,7 +243,7 @@ class ServerOperationMixin:
         """
         return self.ec2_inst.stop_instance(ec2_client)
 
-    def stop_rds(self: "Server", rds_client) -> dict:
+    def stop_rds(self: "Server", rds_client: "RDSClient") -> dict:
         """
         Stop the RDS DB instance of this server.
 
@@ -255,6 +294,7 @@ class ServerOperationMixin:
         ec2_client: "EC2Client",
         allocation_id: str,
         check_exists: bool = True,
+        allow_reassociation: bool = False,
     ) -> T.Optional[dict]:
         """
         Associate the given Elastic IP address with the EC2 instance.
@@ -276,6 +316,8 @@ class ServerOperationMixin:
         :param allocation_id: the EIP allocation id, not the pulibc ip,
             example "eipalloc-1a2b3c4d"
         :param check_exists: check if the EC2 instance exists before associating.
+        :param allow_reassociation: if True, automatically disassociate the EIP
+            from the existing instance and associate it with the new instance.
 
         :return: if we actually send the ``rds_client.associate_address`` API,
             it returns the response of that API. Otherwise, it returns None.
@@ -298,6 +340,7 @@ class ServerOperationMixin:
         return ec2_client.associate_address(
             AllocationId=allocation_id,
             InstanceId=ec2_inst.id,
+            AllowReassociation=allow_reassociation,
         )
 
     def update_db_master_password(
