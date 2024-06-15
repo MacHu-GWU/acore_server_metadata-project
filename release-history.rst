@@ -15,6 +15,19 @@ x.y.z (Backlog)
 **Miscellaneous**
 
 
+0.7.1 (2024-06-15)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+**Features and Improvements**
+
+- Add ``Server.server_lifecycle``, ``Server.wow_status``, ``Server.wow_status_measure_time`` property method.
+- Add ``Server.start_server()`` method.
+- Add ``allow_reassociation`` parameter to ``Server.associate_eip_address()`` method.
+
+**Minor Improvements**
+
+- Improve documentation.
+
+
 0.6.2 (2023-06-28)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 **Miscellaneous**
