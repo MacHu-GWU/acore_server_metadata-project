@@ -30,11 +30,17 @@ Why We Don't Let Server Share Databases
 但是在我们自己开私服的情况下, 我们为了节约成本一般会将这三个数据库都放在同一个 Instance 上. 而又因为我们没有说开多个 Realm 的需求, 所以我们就用一个 DB Instance 来为一个 Realm 提供服务了.
 
 
-.. _environment-name:
+.. _environment-name-and-server-name:
 
-Environment Name
+Environment Name and Server Name
 ------------------------------------------------------------------------------
-我们参照软件工程中的环境的概念, 我们也有多个开发环境, 包括 sbx, tst, prd. 在同一个环境中, 每个 AS 都有一个唯一的名字, 例如 blue, green, white, black, yellow, orange 等.
+我们参照软件工程中的环境的概念, 我们也有多个开发环境, 包括 sbx, tst, prd. 在一个环境中, 每个 AS 都有一个唯一的名字, 例如 blue, green, white, black, yellow, orange 等.
+
+.. important::
+
+    所以在全局看来, 一个 AS 的全局唯一 ID 是由 ``${env_name}-${as_name}`` 组成的. 例如 ``sbx-blue``, ``sbx-green``, ``prd-white``, ``prd-black``.
+
+    这个全局的 ID 也叫做 Server Name (``server_name``)
 
 
 .. _blue-green-deployment:
