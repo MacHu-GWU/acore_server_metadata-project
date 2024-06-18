@@ -20,13 +20,31 @@ from ..vendor.hashes import hashes
 if T.TYPE_CHECKING:  # pragma: no cover
     from .server import Server
     from mypy_boto3_ec2 import EC2Client
+    from mypy_boto3_ec2.type_defs import (
+        ReservationResponseTypeDef,
+        StartInstancesResultTypeDef,
+        StopInstancesResultTypeDef,
+        TerminateInstancesResultTypeDef,
+        AssociateAddressResultTypeDef,
+    )
     from mypy_boto3_rds import RDSClient
+    from mypy_boto3_rds.type_defs import (
+        CreateDBInstanceResultTypeDef,
+        CreateDBSnapshotResultTypeDef,
+        RestoreDBInstanceFromDBSnapshotResultTypeDef,
+        StartDBInstanceResultTypeDef,
+        StopDBInstanceResultTypeDef,
+        DeleteDBInstanceResultTypeDef,
+        ModifyDBInstanceResultTypeDef,
+        DeleteDBSnapshotResultTypeDef,
+    )
 
 
 class ServerOperationMixin:
     """
     This mixin provides methods to operate the server ec2 and rds.
     """
+
     def _get_db_snapshot_id(self: "Server") -> str:
         """
         Get the db snapshot id for this server, the snapshot id
@@ -54,7 +72,7 @@ class ServerOperationMixin:
         tags: T.Optional[T.Dict[str, str]] = None,
         check_exists: bool = True,
         **kwargs,
-    ):  # pragma: no cover
+    ) -> "ReservationResponseTypeDef":  # pragma: no cover
         """
         Launch a new EC2 instance as the Game server from the AMI.
         The mandatory arguments match how we launch a new WOW server.
@@ -122,7 +140,7 @@ class ServerOperationMixin:
         tags: T.Optional[T.Dict[str, str]] = None,
         check_exists: bool = True,
         **kwargs,
-    ):  # pragma: no cover
+    ) -> "RestoreDBInstanceFromDBSnapshotResultTypeDef":  # pragma: no cover
         """
         Launch a new RDS DB instance from the backup snapshot.
         The mandatory arguments match how we launch a new WOW database.
@@ -188,19 +206,98 @@ class ServerOperationMixin:
 
     create_rds = run_rds  # alias
 
+    def new_rds(
+        self: "Server",
+        rds_client: "RDSClient",
+        db_instance_identifier: str,
+        db_instance_class: str,
+        db_subnet_group_name: str,
+        security_group_ids: T.List[str],
+        engine: str = "mysql",
+        engine_version: str = "8.0.28",
+        multi_az: bool = False,
+        master_username: str = "admin",
+        master_password: str = None,
+        tags: T.Optional[T.Dict[str, str]] = None,
+        check_exists: bool = True,
+        **kwargs,
+    ) -> "CreateDBInstanceResultTypeDef":  # pragma: no cover
+        """
+        Launch a new RDS DB instance from scratch.
+        The mandatory arguments match how we launch a new WOW database.
+
+        在数据库运维过程中, 我们都是从自己备份的 Snapshot 启动 DB 实例. 它的 Tag 必须
+        要符合一定的规则 (详情请参考 :class:`Server`). 本方法会自动为新的 DB 实例打上这些
+        必要的 Tag.
+
+        Reference:
+
+        - https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/rds/client/create_db_instance.html
+
+        :param rds_client: boto3 rds client
+        :param db_instance_identifier: example "sbx-green"
+        :param db_instance_class: example "db.t4g.micro", "db.t4g.small", "db.t4g.medium", "db.t4g.large"
+        :param db_subnet_group_name: example "my-db-subnet-group"
+        :param security_group_ids: example ["sg-1a2b3c4d"]
+        :param engine:
+        :param engine_version:
+        :param master_username:
+        :param master_password:
+        :param multi_az: use single instance for dev, multi-az for prod.
+        :param allocated_storage: use 20GB (the minimal value you can use) for dev
+            use larger volume based on players for prod.
+        :param tags: custom tags
+        :param check_exists: if True, check if the RDS DB instance already exists
+
+        :return: the response from ``rds_client.restore_db_instance_from_db_snapshot``
+        """
+        if check_exists:
+            rds_inst = self.get_rds(rds_client, id=self.id)
+            if rds_inst is not None:  # pragma: no cover
+                raise ServerAlreadyExistsError(
+                    f"RDS DB instance {self.id!r} already exists"
+                )
+        if tags is None:
+            tags = dict()
+        tags[TagKey.SERVER_ID] = self.id
+        tags["tech:machine_creator"] = "acore_server_metadata"
+        hashes.use_sha256()
+        master_password_digest = hashes.of_str(master_password, hexdigest=True)
+        tags["tech:master_password_digest"] = master_password_digest
+
+        return rds_client.create_db_instance(
+            DBInstanceIdentifier=db_instance_identifier,
+            DBInstanceClass=db_instance_class,
+            Engine=engine,
+            EngineVersion=engine_version,
+            MasterUsername=master_username,
+            MasterUserPassword=master_password,
+            MultiAZ=multi_az,
+            DBSubnetGroupName=db_subnet_group_name,
+            PubliclyAccessible=False,  # you should never expose your database to the public
+            AutoMinorVersionUpgrade=False,  # don't update MySQL minor version, PLEASE!
+            VpcSecurityGroupIds=security_group_ids,
+            CopyTagsToSnapshot=True,
+            Tags=[dict(Key=k, Value=v) for k, v in tags.items()],
+            **kwargs,
+        )
+
     def start_server(
         self: "Server",
         ec2_client: "EC2Client",
         rds_client: "RDSClient",
-    ):
+    ) -> T.Tuple[
+        T.Optional[StartInstancesResultTypeDef],
+        T.Optional[StartDBInstanceResultTypeDef],
+    ]:
         """
         Start a stopped server. Basically it starts the RDS instance first,
         once the RDS instance become available, then start the EC2 instance.
         """
         if self.rds_inst.is_ready_to_start():
-            self.start_rds(rds_client)
+            start_rds_res = self.start_rds(rds_client)
         elif self.rds_inst.is_available():
-            pass
+            start_rds_res = None
         else:
             raise FailedToStartServerError(
                 "RDS instance is not available and also not ready to start"
@@ -211,15 +308,19 @@ class ServerOperationMixin:
             timeout=300,
         )
         if self.ec2_inst.is_ready_to_start():
-            self.start_ec2(ec2_client)
+            start_ec2_res = self.start_ec2(ec2_client)
         elif self.ec2_inst.is_running():
-            pass
+            start_ec2_res = None
         else:
             raise FailedToStartServerError(
                 "EC2 instance is not running and also not ready to start"
             )
+        return start_ec2_res, start_rds_res
 
-    def start_ec2(self: "Server", ec2_client: "EC2Client") -> dict:
+    def start_ec2(
+        self: "Server",
+        ec2_client: "EC2Client",
+    ) -> "StartInstancesResultTypeDef":
         """
         Start the EC2 instance of this server.
 
@@ -227,7 +328,10 @@ class ServerOperationMixin:
         """
         return self.ec2_inst.start_instance(ec2_client)
 
-    def start_rds(self: "Server", rds_client: "RDSClient") -> dict:
+    def start_rds(
+        self: "Server",
+        rds_client: "RDSClient",
+    ) -> "StartDBInstanceResultTypeDef":
         """
         Start the RDS DB instance of this server.
 
@@ -235,7 +339,10 @@ class ServerOperationMixin:
         """
         return self.rds_inst.start_db_instance(rds_client)
 
-    def stop_ec2(self: "Server", ec2_client: "EC2Client") -> dict:
+    def stop_ec2(
+        self: "Server",
+        ec2_client: "EC2Client",
+    ) -> "StopInstancesResultTypeDef":
         """
         Stop the EC2 instance of this server.
 
@@ -243,7 +350,10 @@ class ServerOperationMixin:
         """
         return self.ec2_inst.stop_instance(ec2_client)
 
-    def stop_rds(self: "Server", rds_client: "RDSClient") -> dict:
+    def stop_rds(
+        self: "Server",
+        rds_client: "RDSClient",
+    ) -> "StopDBInstanceResultTypeDef":
         """
         Stop the RDS DB instance of this server.
 
@@ -251,7 +361,10 @@ class ServerOperationMixin:
         """
         return self.rds_inst.stop_db_instance(rds_client)
 
-    def delete_ec2(self: "Server", ec2_client: "EC2Client"):
+    def delete_ec2(
+        self: "Server",
+        ec2_client: "EC2Client",
+    ) -> "TerminateInstancesResultTypeDef":
         """
         Delete the EC2 instance of this server.
 
@@ -263,7 +376,7 @@ class ServerOperationMixin:
         self: "Server",
         rds_client: "RDSClient",
         create_final_snapshot: bool = True,
-    ) -> dict:
+    ) -> "DeleteDBInstanceResultTypeDef":
         """
         Delete the RDS DB instance of this server.
 
@@ -295,7 +408,7 @@ class ServerOperationMixin:
         allocation_id: str,
         check_exists: bool = True,
         allow_reassociation: bool = False,
-    ) -> T.Optional[dict]:
+    ) -> T.Optional["AssociateAddressResultTypeDef"]:
         """
         Associate the given Elastic IP address with the EC2 instance.
         Note that this operation is idempotent, it will disassociate and re-associate
@@ -348,7 +461,7 @@ class ServerOperationMixin:
         rds_client: "RDSClient",
         master_password: str,
         check_exists: bool = True,
-    ) -> T.Optional[dict]:
+    ) -> T.Optional["ModifyDBInstanceResultTypeDef"]:
         """
         Update the DB instance master password. When you recover the DB instance
         from a snapshot, the master password is the same as the password when you
@@ -398,7 +511,7 @@ class ServerOperationMixin:
         self: "Server",
         rds_client: "RDSClient",
         check_exists: bool = True,
-    ) -> dict:
+    ) -> "CreateDBSnapshotResultTypeDef":
         """
         Create a 'manual' DB snapshot for the RDS DB instance.
         The snapshot id naming convention is "${server_id}-%Y-%m-%d-%H-%M-%S".
@@ -430,7 +543,7 @@ class ServerOperationMixin:
         rds_client: "RDSClient",
         keep_n: int = 3,
         keep_days: int = 365,
-    ) -> T.Optional[T.List[dict]]:
+    ) -> T.Optional[T.List["DeleteDBSnapshotResultTypeDef"]]:
         """
         Clean up old RDS DB snapshots of this server.
 
