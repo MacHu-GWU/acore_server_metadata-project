@@ -15,6 +15,13 @@ x.y.z (Backlog)
 **Miscellaneous**
 
 
+1.0.1 (2024-06-20)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+**💥Breaking Changes**
+
+- Remove all server operation methods from ``acore_server_metadata.api.Server`` class. They are moved to `acore_server <https://github.com/MacHu-GWU/acore_server-project>`_ library.
+
+
 0.7.1 (2024-06-15)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 **Features and Improvements**

@@ -28,18 +28,6 @@ def test():
     _ = api.Server.is_rds_exists
     _ = api.Server.is_rds_running
     _ = api.Server.refresh
-    _ = api.Server.run_ec2
-    _ = api.Server.run_rds
-    _ = api.Server.start_ec2
-    _ = api.Server.start_rds
-    _ = api.Server.stop_ec2
-    _ = api.Server.stop_rds
-    _ = api.Server.delete_ec2
-    _ = api.Server.delete_rds
-    _ = api.Server.update_db_master_password
-    _ = api.Server.associate_eip_address
-    _ = api.Server.create_db_snapshot
-    _ = api.Server.cleanup_db_snapshot
 
 
 if __name__ == "__main__":

@@ -159,7 +159,7 @@ class TestServer(BaseMockTest):
         _ = server.wow_status
         _ = server.wow_status_measure_time
 
-        server.stop_ec2(self.ec2_client)
+        self.ec2_client.stop_instances(InstanceIds=[server.ec2_inst.id])
         server.refresh(ec2_client=self.ec2_client, rds_client=self.rds_client)
         assert server.is_exists() is True
         assert server.is_running() is False
@@ -168,7 +168,7 @@ class TestServer(BaseMockTest):
         assert server.is_rds_exists() is True
         assert server.is_rds_running() is True
 
-        server.stop_rds(self.rds_client)
+        self.rds_client.stop_db_instance(DBInstanceIdentifier=server.rds_inst.id)
         server.refresh(ec2_client=self.ec2_client, rds_client=self.rds_client)
         assert server.is_exists() is True
         assert server.is_running() is False
@@ -177,7 +177,7 @@ class TestServer(BaseMockTest):
         assert server.is_rds_exists() is True
         assert server.is_rds_running() is False
 
-        server.delete_ec2(self.ec2_client)
+        self.ec2_client.terminate_instances(InstanceIds=[server.ec2_inst.id])
         server.refresh(ec2_client=self.ec2_client, rds_client=self.rds_client)
         assert server.is_exists() is False
         assert server.is_running() is False
@@ -186,7 +186,7 @@ class TestServer(BaseMockTest):
         assert server.is_rds_exists() is True
         assert server.is_rds_running() is False
 
-        server.delete_rds(self.rds_client, create_final_snapshot=False)
+        self.rds_client.delete_db_instance(DBInstanceIdentifier=server.rds_inst.id)
         server.refresh(ec2_client=self.ec2_client, rds_client=self.rds_client)
         assert server.is_exists() is False
         assert server.is_running() is False
@@ -195,61 +195,9 @@ class TestServer(BaseMockTest):
         assert server.is_rds_exists() is False
         assert server.is_rds_running() is False
 
-    def _test_operations(self):
-        id = "sbx-green"
-        ec2_id = self.launch_ec2(id)
-        rds_id = self.launch_rds(id)
-
-        server = Server.get_server(
-            id=id, ec2_client=self.ec2_client, rds_client=self.rds_client
-        )
-
-        # allocate eip address
-        res = self.ec2_client.allocate_address()
-        public_id = res["PublicIp"]
-        allocation_id = res["AllocationId"]
-
-        res = server.associate_eip_address(
-            ec2_client=self.ec2_client, allocation_id=allocation_id
-        )
-        assert res is not None
-
-        server.refresh(ec2_client=self.ec2_client, rds_client=self.rds_client)
-        assert server.ec2_inst.public_ip == public_id
-
-        # this api will do nothing
-        res = server.associate_eip_address(
-            ec2_client=self.ec2_client, allocation_id=allocation_id
-        )
-        assert res is None
-
-        # set master password
-        res = server.update_db_master_password(
-            rds_client=self.rds_client, master_password="newpass"
-        )
-        assert res is not None
-
-        # this api will do nothing
-        server.refresh(ec2_client=self.ec2_client, rds_client=self.rds_client)
-        res = server.update_db_master_password(
-            rds_client=self.rds_client, master_password="newpass"
-        )
-        assert res is None
-
-        for _ in range(3):
-            server.create_db_snapshot(rds_client=self.bsm.rds_client)
-            time.sleep(1)
-
-        server.cleanup_db_snapshot(
-            rds_client=self.bsm.rds_client,
-            keep_n=1,
-            keep_days=0,
-        )
-
     def test(self):
         self._test_constructor()
         self._test_status()
-        self._test_operations()
 
 
 if __name__ == "__main__":

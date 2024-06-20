@@ -53,4 +53,4 @@ Blue Green Deployment
 
     如果你的升级包括了大量数据库改动, 那么这种回滚就会造成数据回档. 因为新的数据库已经被写入了新的数据, 而你无法将新的数据库同步到旧的数据库上 (因为不兼容).
 
-我们一般把 blue/green 分为一组, white/black 分为一组, yello/orange 分为一组. 而 red 作为一个单独的, 用于测试的 sandbox.
+我们一般把 blue/green 分为一组, white/black 分为一组, yellow/orange 分为一组. 而 red 作为一个单独的, 用于测试的 sandbox.
