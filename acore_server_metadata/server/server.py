@@ -1,5 +1,9 @@
 # -*- coding: utf-8 -*-
 
+"""
+此模块实现了 per Server metadata 的抽象. See :class:`Server` for more details.
+"""
+
 import typing as T
 import dataclasses
 from datetime import datetime
