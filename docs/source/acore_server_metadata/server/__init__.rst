@@ -12,6 +12,4 @@ sub packages and modules
 
     api <api>
     server <server>
-    server_operation <server_operation>
-    server_status <server_status>
     

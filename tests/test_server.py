@@ -2,7 +2,6 @@
 
 import typing as T
 import moto
-import time
 import pytest
 
 from simple_aws_ec2.api import Ec2Instance
@@ -10,7 +9,14 @@ from simple_aws_rds.api import RDSDBInstance
 from acore_constants.api import TagKey
 
 from acore_server_metadata.tests.mock_aws import BaseMockTest
-from acore_server_metadata.settings import settings
+from acore_server_metadata.exc import (
+    ServerNotUniqueError,
+    ServerStatusError,
+    ServerNotFoundError,
+    ServerAlreadyExistsError,
+    FailedToStartServerError,
+    FailedToStopServerError,
+)
 from acore_server_metadata.server.api import (
     Server,
     ServerNotUniqueError,
@@ -155,12 +161,28 @@ class TestServer(BaseMockTest):
         assert server.is_rds_exists() is True
         assert server.is_rds_running() is True
 
+        _ = server.ensure_ec2_exists()
+        with pytest.raises(ServerAlreadyExistsError):
+            _ = server.ensure_ec2_not_exists()
+        _ = server.ensure_rds_exists()
+        with pytest.raises(ServerAlreadyExistsError):
+            _ = server.ensure_rds_not_exists()
+        _ = server.ensure_ec2_is_running()
+        with pytest.raises(FailedToStartServerError):
+            _ = server.ensure_ec2_is_ready_to_start()
+        _ = server.ensure_ec2_is_ready_to_stop()
+        _ = server.ensure_rds_is_running()
+        with pytest.raises(FailedToStartServerError):
+            _ = server.ensure_rds_is_ready_to_start()
+        _ = server.ensure_rds_is_ready_to_stop()
+
         _ = server.server_lifecycle
         _ = server.wow_status
         _ = server.wow_status_measure_time
 
         self.ec2_client.stop_instances(InstanceIds=[server.ec2_inst.id])
         server.refresh(ec2_client=self.ec2_client, rds_client=self.rds_client)
+
         assert server.is_exists() is True
         assert server.is_running() is False
         assert server.is_ec2_exists() is True
@@ -168,8 +190,25 @@ class TestServer(BaseMockTest):
         assert server.is_rds_exists() is True
         assert server.is_rds_running() is True
 
+        _ = server.ensure_ec2_exists()
+        with pytest.raises(ServerAlreadyExistsError):
+            _ = server.ensure_ec2_not_exists()
+        _ = server.ensure_rds_exists()
+        with pytest.raises(ServerAlreadyExistsError):
+            _ = server.ensure_rds_not_exists()
+        with pytest.raises(ServerStatusError):
+            _ = server.ensure_ec2_is_running()
+        _ = server.ensure_ec2_is_ready_to_start()
+        with pytest.raises(FailedToStopServerError):
+            _ = server.ensure_ec2_is_ready_to_stop()
+        _ = server.ensure_rds_is_running()
+        with pytest.raises(FailedToStartServerError):
+            _ = server.ensure_rds_is_ready_to_start()
+        _ = server.ensure_rds_is_ready_to_stop()
+
         self.rds_client.stop_db_instance(DBInstanceIdentifier=server.rds_inst.id)
         server.refresh(ec2_client=self.ec2_client, rds_client=self.rds_client)
+
         assert server.is_exists() is True
         assert server.is_running() is False
         assert server.is_ec2_exists() is True
@@ -177,8 +216,26 @@ class TestServer(BaseMockTest):
         assert server.is_rds_exists() is True
         assert server.is_rds_running() is False
 
+        _ = server.ensure_ec2_exists()
+        with pytest.raises(ServerAlreadyExistsError):
+            _ = server.ensure_ec2_not_exists()
+        _ = server.ensure_rds_exists()
+        with pytest.raises(ServerAlreadyExistsError):
+            _ = server.ensure_rds_not_exists()
+        with pytest.raises(ServerStatusError):
+            _ = server.ensure_ec2_is_running()
+        _ = server.ensure_ec2_is_ready_to_start()
+        with pytest.raises(FailedToStopServerError):
+            _ = server.ensure_ec2_is_ready_to_stop()
+        with pytest.raises(ServerStatusError):
+            _ = server.ensure_rds_is_running()
+        _ = server.ensure_rds_is_ready_to_start()
+        with pytest.raises(FailedToStopServerError):
+            _ = server.ensure_rds_is_ready_to_stop()
+
         self.ec2_client.terminate_instances(InstanceIds=[server.ec2_inst.id])
         server.refresh(ec2_client=self.ec2_client, rds_client=self.rds_client)
+
         assert server.is_exists() is False
         assert server.is_running() is False
         assert server.is_ec2_exists() is False
@@ -186,14 +243,52 @@ class TestServer(BaseMockTest):
         assert server.is_rds_exists() is True
         assert server.is_rds_running() is False
 
+        with pytest.raises(ServerNotFoundError):
+            _ = server.ensure_ec2_exists()
+        _ = server.ensure_ec2_not_exists()
+        _ = server.ensure_rds_exists()
+        with pytest.raises(ServerAlreadyExistsError):
+            _ = server.ensure_rds_not_exists()
+        with pytest.raises(ServerStatusError):
+            _ = server.ensure_ec2_is_running()
+        with pytest.raises(ServerNotFoundError):
+            _ = server.ensure_ec2_is_ready_to_start()
+        with pytest.raises(ServerNotFoundError):
+            _ = server.ensure_ec2_is_ready_to_stop()
+        with pytest.raises(ServerStatusError):
+            _ = server.ensure_rds_is_running()
+        _ = server.ensure_rds_is_ready_to_start()
+        with pytest.raises(FailedToStopServerError):
+            _ = server.ensure_rds_is_ready_to_stop()
+
         self.rds_client.delete_db_instance(DBInstanceIdentifier=server.rds_inst.id)
         server.refresh(ec2_client=self.ec2_client, rds_client=self.rds_client)
+
         assert server.is_exists() is False
         assert server.is_running() is False
         assert server.is_ec2_exists() is False
         assert server.is_ec2_running() is False
         assert server.is_rds_exists() is False
         assert server.is_rds_running() is False
+
+        with pytest.raises(ServerNotFoundError):
+            _ = server.ensure_ec2_exists()
+        _ = server.ensure_ec2_not_exists()
+        with pytest.raises(ServerNotFoundError):
+            _ = server.ensure_rds_exists()
+        _ = server.ensure_rds_not_exists()
+        with pytest.raises(ServerStatusError):
+            _ = server.ensure_ec2_is_running()
+        with pytest.raises(ServerNotFoundError):
+            _ = server.ensure_ec2_is_ready_to_start()
+        with pytest.raises(ServerNotFoundError):
+            _ = server.ensure_ec2_is_ready_to_stop()
+        with pytest.raises(ServerStatusError):
+            _ = server.ensure_rds_is_running()
+        with pytest.raises(ServerNotFoundError):
+            _ = server.ensure_rds_is_ready_to_start()
+        with pytest.raises(ServerNotFoundError):
+            _ = server.ensure_rds_is_ready_to_stop()
 
     def test(self):
         self._test_constructor()

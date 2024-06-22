@@ -15,11 +15,35 @@ x.y.z (Backlog)
 **Miscellaneous**
 
 
+1.1.1 (2024-06-22)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+**Features and Improvements**
+
+- Add the following public API:
+    - :meth:`acore_server_metadata.api.Server.ensure_ec2_exists <acore_server_metadata.server.server.Server.ensure_ec2_exists>`
+    - :meth:`acore_server_metadata.api.Server.ensure_ec2_not_exists <acore_server_metadata.server.server.Server.ensure_ec2_not_exists>`
+    - :meth:`acore_server_metadata.api.Server.ensure_rds_exists <acore_server_metadata.server.server.Server.ensure_rds_exists>`
+    - :meth:`acore_server_metadata.api.Server.ensure_rds_not_exists <acore_server_metadata.server.server.Server.ensure_rds_not_exists>`
+    - :meth:`acore_server_metadata.api.Server.ensure_ec2_is_running <acore_server_metadata.server.server.Server.ensure_ec2_is_running>`
+    - :meth:`acore_server_metadata.api.Server.ensure_ec2_is_ready_to_start <acore_server_metadata.server.server.Server.ensure_ec2_is_ready_to_start>`
+    - :meth:`acore_server_metadata.api.Server.ensure_ec2_is_ready_to_stop <acore_server_metadata.server.server.Server.ensure_ec2_is_ready_to_stop>`
+    - :meth:`acore_server_metadata.api.Server.ensure_rds_is_running <acore_server_metadata.server.server.Server.ensure_rds_is_running>`
+    - :meth:`acore_server_metadata.api.Server.ensure_rds_is_ready_to_start <acore_server_metadata.server.server.Server.ensure_rds_is_ready_to_start>`
+    - :meth:`acore_server_metadata.api.Server.ensure_rds_is_ready_to_stop <acore_server_metadata.server.server.Server.ensure_rds_is_ready_to_stop>`
+    - :class:`acore_server_metadata.api.ServerNotFoundError <acore_server_metadata.exc.ServerNotFoundError>`
+    - :class:`acore_server_metadata.api.FailedToStopServerError <acore_server_metadata.exc.FailedToStopServerError>`
+
+**Minor Improvements**
+
+- Move all exception class to public API namespace.
+- Update docs.
+
+
 1.0.1 (2024-06-20)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 **💥Breaking Changes**
 
-- Remove all server operation methods from ``acore_server_metadata.api.Server`` class. They are moved to `acore_server <https://github.com/MacHu-GWU/acore_server-project>`_ library.
+- Remove all server operation methods from :class:`acore_server_metadata.api.Server <acore_server_metadata.server.server.Server>` class. They are moved to `acore_server <https://github.com/MacHu-GWU/acore_server-project>`_ library.
 
 
 0.7.1 (2024-06-15)

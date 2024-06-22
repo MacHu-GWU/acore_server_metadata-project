@@ -9,7 +9,14 @@ from simple_aws_rds.api import RDSDBInstance, RDSDBInstanceStatusEnum
 from acore_constants.api import TagKey
 
 from ..utils import group_by, get_boto_ses_from_ec2_inside
-from ..exc import ServerNotUniqueError
+from ..exc import (
+    ServerNotUniqueError,
+    ServerStatusError,
+    ServerNotFoundError,
+    ServerAlreadyExistsError,
+    FailedToStartServerError,
+    FailedToStopServerError,
+)
 
 
 if T.TYPE_CHECKING:  # pragma: no cover
@@ -329,6 +336,9 @@ class Server:
         self.ec2_inst = self.get_ec2(ec2_client, self.id)
         self.rds_inst = self.get_rds(rds_client, self.id)
 
+    # --------------------------------------------------------------------------
+    # Check server status
+    # --------------------------------------------------------------------------
     def is_exists(self) -> bool:
         """
         检查 EC2 和 RDS 实例是不是都存在 (什么状态不管).
@@ -373,12 +383,107 @@ class Server:
             return False
         return self.rds_inst.is_available()
 
+    # --------------------------------------------------------------------------
+    # Ensure server status
+    # --------------------------------------------------------------------------
+    def ensure_ec2_exists(self):
+        """
+        Raises an exception if EC2 instance for this server does not exist.
+        """
+        if self.is_ec2_exists() is False:
+            raise ServerNotFoundError(f"EC2 instance for {self.id!r} server not found!")
+
+    def ensure_ec2_not_exists(self):
+        """
+        Raises an exception if EC2 instance for this server already exists.
+        """
+        if self.is_ec2_exists():
+            raise ServerAlreadyExistsError(
+                f"EC2 instance for {self.id!r} server already exists!"
+            )
+
+    def ensure_rds_exists(self):
+        """
+        Raises an exception if RDS instance for this server does not exist.
+        """
+        if self.is_rds_exists() is False:
+            raise ServerNotFoundError(f"RDS instance for {self.id!r} server not found!")
+
+    def ensure_rds_not_exists(self):
+        """
+        Raises an exception if RDS instance for this server already exists.
+        """
+        if self.is_rds_exists():
+            raise ServerAlreadyExistsError(
+                f"RDS instance for {self.id!r} server already exists!"
+            )
+
+    def ensure_ec2_is_running(self):
+        """
+        Raises an exception if EC2 instance for this server is not running.
+        """
+        self.ensure_ec2_exists()
+        if self.is_ec2_running() is False:
+            raise ServerStatusError(
+                f"EC2 instance for {self.id!r} server is not running!"
+            )
+
+    def ensure_ec2_is_ready_to_start(self):
+        """
+        Raises an exception if EC2 instance for this server is not ready to start.
+        """
+        self.ensure_ec2_exists()
+        if self.ec2_inst.is_ready_to_start() is False:
+            raise FailedToStartServerError(
+                f"EC2 instance for {self.id!r} server is not ready to start!"
+            )
+
+    def ensure_ec2_is_ready_to_stop(self):
+        """
+        Raises an exception if EC2 instance for this server is not ready to stop.
+        """
+        self.ensure_ec2_exists()
+        if self.ec2_inst.is_ready_to_stop() is False:
+            raise FailedToStopServerError(
+                f"EC2 instance for {self.id!r} server is not ready to stop!"
+            )
+
+    def ensure_rds_is_running(self):
+        """
+        Raises an exception if RDS instance for this server is not running.
+        """
+        self.ensure_rds_exists()
+        if self.is_rds_running() is False:
+            raise ServerStatusError(
+                f"RDS instance for {self.id!r} server is not running!"
+            )
+
+    def ensure_rds_is_ready_to_start(self):
+        """
+        Raises an exception if RDS instance for this server is not ready to start.
+        """
+        self.ensure_rds_exists()
+        if self.rds_inst.is_ready_to_start() is False:
+            raise FailedToStartServerError(
+                f"RDS instance for {self.id!r} server is not ready to start!"
+            )
+
+    def ensure_rds_is_ready_to_stop(self):
+        """
+        Raises an exception if RDS instance for this server is not ready to stop.
+        """
+        self.ensure_rds_exists()
+        if self.rds_inst.is_ready_to_stop() is False:
+            raise FailedToStopServerError(
+                f"RDS instance for {self.id!r} server is not ready to stop!"
+            )
+
     @property
     def server_lifecycle(self) -> T.Optional[str]:
         """
         尝试从 EC2 实例的 Tags 中获取 Server 的生命周期状态. 如果没有找到则返回 None.
         """
-        if self.ec2_inst is None:
+        if self.ec2_inst is None:  # pragma: no cover
             return None
         return self.ec2_inst.tags.get(TagKey.SERVER_LIFECYCLE)
 
@@ -387,7 +492,7 @@ class Server:
         """
         尝试从 EC2 实例的 Tags 中获取魔兽世界服务器 Server 的状态. 如果没有找到则返回 None.
         """
-        if self.ec2_inst is None:
+        if self.ec2_inst is None:  # pragma: no cover
             return None
         return self.ec2_inst.tags.get(TagKey.WOW_STATUS)
 
@@ -396,10 +501,10 @@ class Server:
         """
         尝试从 EC2 实例的 Tags 中获取魔兽世界服务器 Server 的状态的测量时间. 如果没有找到则返回 None.
         """
-        if self.ec2_inst is None:
+        if self.ec2_inst is None:  # pragma: no cover
             return None
         v = self.ec2_inst.tags.get(TagKey.WOW_STATUS_MEASURE_TIME)
-        if v:
+        if v:  # pragma: no cover
             return datetime.fromisoformat(v)
         else:
             return None

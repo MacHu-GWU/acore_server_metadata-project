@@ -13,6 +13,7 @@ sub packages and modules
     server <server/__init__>
     api <api>
     exc <exc>
+    logger <logger>
     settings <settings>
     utils <utils>
     

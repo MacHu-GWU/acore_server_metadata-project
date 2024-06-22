@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 
 try:
     import boto3
-except ImportError:
+except ImportError:  # pragma: no cover
     pass
 
 from simple_aws_ec2.api import EC2MetadataCache
@@ -35,7 +35,7 @@ def group_by(
 def get_boto_ses_from_ec2_inside(
     refresh_cache: bool = True,
     ignore_cache: bool = False,
-) -> "boto3.session.Session":
+) -> "boto3.session.Session":  # pragma: no cover
     return EC2MetadataCache.load().get_boto_ses_from_ec2_inside(
         refresh_cache=refresh_cache,
         ignore_cache=ignore_cache,
